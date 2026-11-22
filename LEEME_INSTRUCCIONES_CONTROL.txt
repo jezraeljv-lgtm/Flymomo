@@ -1,0 +1,43 @@
+=========================================================================
+GUÍA DE CONEXIÓN DEL CONTROL REMOTO DJI (USB TIPO-C) EN CUALQUIER COMPUTADORA
+=========================================================================
+
+¿POR QUÉ EL CONTROL NO SE RECONOCE SOLO CON ABRIR EL ARCHIVO HTML?
+-----------------------------------------------------------------
+Los controles remotos de DJI (DJI RC PLUS 2, DJI RC, Agras RC) cuentan con un
+sistema operativo Android interno. Windows no los detecta como un joystick de
+videojuegos estándar (HID Plug-and-Play), sino como un dispositivo Android.
+
+Para que las palancas, dials y los 24 botones físicos se comuniquen con el
+simulador en el navegador, se incluye el programa puente: "DJI_RC_Bridge.exe".
+
+
+PASOS PARA USAR EN OTRA COMPUTADORA (SOLO 2 PASOS):
+--------------------------------------------------
+1. Conecta el control DJI a la computadora mediante un cable USB Tipo-C de datos
+   y enciéndelo.
+   * Si en la pantalla del control DJI aparece un mensaje preguntando:
+     "¿Permitir depuración USB?", selecciona "Permitir siempre desde esta computadora"
+     y presiona "Aceptar".
+
+2. Haz doble clic en el archivo:
+   👉 "Iniciar_FlyMomo_con_Control.bat" (o directamente en "DJI_RC_Bridge.exe").
+
+¡Listo! El puente detectará el control al instante y abrirá automáticamente
+el simulador ("index-todo-en-uno.html") en tu navegador con las palancas y
+botones 100% calibrados.
+
+
+CONTROLES ALTERNATIVOS (SIN CONTROL REMOTO DJI):
+------------------------------------------------
+Si vas a volar con un control USB estándar (Xbox / PS4 / joystick PC) o teclado,
+puedes abrir directamente el archivo "index-todo-en-uno.html" (pulsa tecla [G]
+para abrir calibración si usas joystick estándar) o usar el teclado:
+- W / S: Subir y Bajar Altitud (Throttle)
+- A / D: Girar Orientación (Yaw)
+- Flecha Arriba / Abajo: Avance y Retroceso (Pitch)
+- Flecha Izq / Der: Desplazamiento Lateral (Roll)
+- Barra Espaciadora / Tecla V: Despegar / Aterrizar
+- Tecla Z o E: Encender / Apagar Pulverización
+- Tecla R: Rellenar Tanque (RTH en botón inferior derecho)
+=========================================================================
