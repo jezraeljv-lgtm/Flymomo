@@ -9562,8 +9562,16 @@ html body.sidebar-collapsed #virtual-rc-screen .dji-white-action-btn {
                 </div>
 
                 <div class="toggle-group">
+                    <label class="toggle-item" style="border:1px solid rgba(239,68,68,0.45); background:rgba(239,68,68,0.10); border-radius:6px; padding:6px 8px; margin-bottom:4px;">
+                        <span style="color:#fca5a5; font-weight:700;">🚫 Desactivar Radares (Todos)</span>
+                        <div class="switch">
+                            <input type="checkbox" id="toggle-disable-all-radars">
+                            <span class="switch-slider"></span>
+                        </div>
+                    </label>
+
                     <label class="toggle-item">
-                        <span>Activar Radar</span>
+                        <span>Activar Radar Omnidireccional</span>
                         <div class="switch">
                             <input type="checkbox" id="toggle-radar-active" checked>
                             <span class="switch-slider"></span>
@@ -10425,6 +10433,21 @@ html body.sidebar-collapsed #virtual-rc-screen .dji-white-action-btn {
     <div id="hud-alert-banner" class="hud-alert-banner" style="display: none;">
         <span id="hud-alert-icon" class="hud-alert-icon">🏠</span>
         <span id="hud-alert-text" class="hud-alert-text">RTH: Regreso al helipuerto iniciado</span>
+    </div>
+
+    <!-- Banner de Impacto Detectado + Reparación del Dron -->
+    <div id="crash-impact-banner" style="display:none; position:fixed; top:68px; left:50%; transform:translateX(-50%); z-index:9999; background:linear-gradient(135deg, rgba(127,29,29,0.96), rgba(69,10,10,0.96)); border:2px solid #ef4444; border-radius:12px; padding:12px 18px; box-shadow:0 12px 32px rgba(0,0,0,0.65); color:#fff; min-width:320px; max-width:480px; text-align:center; backdrop-filter:blur(8px);">
+        <div style="font-size:15px; font-weight:800; letter-spacing:0.6px; color:#fecaca; display:flex; align-items:center; justify-content:center; gap:8px;">
+            <span>🚨 IMPACTO DETECTADO</span>
+        </div>
+        <div id="crash-impact-detail" style="font-size:12px; color:#fee2e2; margin-top:4px; line-height:1.35;">
+            Colisión severa detectada. Daño estructural en brazos, hélices y tren de aterrizaje.
+        </div>
+        <div style="margin-top:10px; display:flex; justify-content:center; gap:8px;">
+            <button type="button" id="btn-repair-drone" style="background:#10b981; color:#022c22; border:none; border-radius:8px; padding:7px 14px; font-size:12px; font-weight:800; cursor:pointer; box-shadow:0 2px 8px rgba(16,185,129,0.4);">
+                🔧 Reparar y Reiniciar Dron
+            </button>
+        </div>
     </div>
 
     <!-- =========================================================================
@@ -21129,6 +21152,8 @@ function createRealisticAgrasT70P() {
         ledMatrixMaterial: matLedMatrixYellow,
 
         setFoldState: setFoldState,
+        armPivots: armPivots,
+        landingGearGroup: landingGearGroup,
 
         spreaderGroup: spreaderAssembly.spreaderGroup,
 
@@ -23519,6 +23544,8 @@ function createRealisticAgrasT100() {
         },
         ledMatrixMaterial: matLedMatrixYellow,
         setFoldState: setFoldState,
+        armPivots: armPivots,
+        landingGearGroup: landingGearGroup,
         spreaderGroup: spreaderAssembly.spreaderGroup,
         spreaderDisc: spreaderAssembly.spreaderDisc,
         spreaderOrigin: spreaderOrigin,
@@ -25505,7 +25532,9 @@ function createRealisticAgrasT25P() {
 
         ledMatrixMaterial: matLedWarmWhite,
 
-        setFoldState: setFoldState
+        setFoldState: setFoldState,
+        armPivots: armPivots,
+        landingGearGroup: landingGearGroup
 
     };
 
@@ -26530,6 +26559,7 @@ function createRealisticAgrasT55() {
     chassisGroup.add(rearRadarPrism);
 
     // PATINES DE ATERRIZAJE TUBULARES CONTINUOS CON ARCO / ESCALÓN CENTRAL ELEVADO (VISTA LATERAL FOTO 2 Y FRONTAL FOTO 1)
+    const landingGearMeshes = [];
     const skidRadius = 0.0155;
     [-1, 1].forEach(side => {
         const xTopFront = side * 0.205;
@@ -26558,6 +26588,7 @@ function createRealisticAgrasT55() {
         skidMesh.castShadow = true;
         skidMesh.receiveShadow = true;
         chassisGroup.add(skidMesh);
+        landingGearMeshes.push(skidMesh);
 
         // Refuerzo estructural triangular superior en la pata delantera y trasera (Foto 2)
         const frontGusset = new THREE.Mesh(createRoundedBox(0.032, 0.11, 0.044, 0.005, 2), matFrameDark);
@@ -26629,6 +26660,7 @@ function createRealisticAgrasT55() {
     const nozzleOrigins = [];
     const armLights = [];
     const armHalos = [];
+    const armPivots = [];
 
     const matNavLedRed = new THREE.MeshBasicMaterial({ color: 0xff1122 });
     const matNavLedGreen = new THREE.MeshBasicMaterial({ color: 0x00e676 });
@@ -26645,6 +26677,7 @@ function createRealisticAgrasT55() {
         hingeGroup.position.set(rootX, my, rootZ);
         hingeGroup.lookAt(mx, my, mz);
         bodyRoot.add(hingeGroup);
+        armPivots.push({ group: hingeGroup, sx: cfg.signX, sz: cfg.signZ });
 
         const hingeBody = new THREE.Mesh(createRoundedBox(0.076, 0.068, 0.115, 0.008, 3), matFrameDark);
         hingeBody.position.set(0, 0, 0.035);
@@ -27209,7 +27242,9 @@ function createRealisticAgrasT55() {
 
         },
 
-        setFoldState: setFoldState
+        setFoldState: setFoldState,
+        armPivots: armPivots,
+        landingGearMeshes: landingGearMeshes
 
     };
 
@@ -27312,6 +27347,20 @@ class AgriDrone3 {
         // Radar Inferior & Sistema de Seguimiento de Terreno (1.0m a 8.0m sobre la copa)
 
         this.terrainFollowingEnabled = false; // Inactivo por defecto según solicitud del usuario (Modo altitud fija)
+
+        // Estado de choque / daño físico (cuando los radares están desactivados)
+        this.isCrashed = false;
+        this.crashPhase = 'none'; // 'none' | 'falling' | 'resting'
+        this.crashReason = '';
+        this.crashSpeed = 0;
+        this.crashAngularVel = new THREE.Vector3();
+        this.crashTimer = 0;
+        this.crashBumpCooldown = 0;
+        this.crashSpillRemaining = 0;
+        this.detachedDebris = [];
+        this.spillParticles = [];
+        this.dirtParticles = [];
+        this.dirtIntensity = 0;
 
         this.terrainFollowClearance = 3.0;   // Altura sobre copa configurada (1.0 - 8.0 m)
 
@@ -27695,9 +27744,12 @@ class AgriDrone3 {
 
 
 
-        // 5. Función de plegado oficial
+        // 5. Función de plegado oficial y referencias estructurales (brazos y tren de aterrizaje)
 
         this.setFoldState = mesh.userData.setFoldState;
+        this.armPivots = mesh.userData.armPivots || [];
+        this.landingGearGroup = mesh.userData.landingGearGroup || null;
+        this.landingGearMeshes = mesh.userData.landingGearMeshes || [];
 
         // 5.1 Reaplicar tipo de carga (Líquido vs Esparcidor de sólidos)
         if (this.payloadType && typeof this.setPayloadType === 'function') {
@@ -28464,6 +28516,13 @@ class AgriDrone3 {
 
     takeoff() {
 
+        if (this.isCrashed) {
+            if (window.app && typeof window.app.showHUDAlert === 'function') {
+                window.app.showHUDAlert('🔧 Dron dañado por impacto. Presiona "Reparar y Reiniciar Dron".', 3000, '🚨');
+            }
+            return;
+        }
+
         if (this.setFoldState) this.setFoldState('unfolded');
 
         if (this.batteryPct <= 5.0) {
@@ -28788,6 +28847,20 @@ class AgriDrone3 {
         const safeDt = Math.max(0.001, dt);
 
         const gravity = CONFIG.gravity;
+
+        if (this.crashBumpCooldown > 0) {
+            this.crashBumpCooldown = Math.max(0, this.crashBumpCooldown - safeDt);
+        }
+
+        // Si el dron sufrió un impacto fuerte, ejecutar física de caída, escombros y derrame
+        if (this.isCrashed) {
+            this.updateCrashPhysics(safeDt);
+            return;
+        } else if ((this.detachedDebris && this.detachedDebris.length > 0) ||
+                   (this.dirtParticles && this.dirtParticles.length > 0) ||
+                   (this.spillParticles && this.spillParticles.length > 0)) {
+            this.updateCrashDebrisOnly(safeDt);
+        }
 
 
 
@@ -30903,6 +30976,10 @@ class AgriDrone3 {
 
     updatePhysics(dt, manualInputs) {
 
+        if (this.isCrashed) {
+            return;
+        }
+
         const safeDt = Math.max(0.001, dt);
 
 
@@ -31191,6 +31268,33 @@ class AgriDrone3 {
 
 
 
+        // Detección física de colisiones con obstáculos y suelo cuando los radares están desactivados
+        const radarsOff = !(this.radar && this.radar.enabled);
+        if (radarsOff && this.isFlying && !this.isCrashed) {
+            // 1. Colisión con obstáculos (árboles, Tacoma, equipamiento, límites)
+            if (this.radar && this.radar.physicalClosestVector && isFinite(this.radar.physicalClosestDistance)) {
+                const hitRadius = this.getPhysicalHitRadius();
+                const dist = this.radar.physicalClosestDistance;
+                const vObs = this.radar.physicalClosestVector;
+                if (dist <= hitRadius && vObs.lengthSq() > 1e-6) {
+                    const uToObs = vObs.clone().normalize();
+                    const vApproach = this.velocity.dot(uToObs);
+                    const totalSpeed = this.velocity.length();
+                    const impactSpeed = Math.max(vApproach, totalSpeed * 0.80);
+                    if (vApproach > 0.25 || dist < hitRadius * 0.65) {
+                        const normalOut = uToObs.clone().negate();
+                        const obsName = this.radar.physicalClosestObstacleName || 'Obstáculo';
+                        if (impactSpeed >= 4.2) {
+                            this.triggerHardCrash(obsName, normalOut, impactSpeed);
+                            return;
+                        } else if (this.crashBumpCooldown <= 0) {
+                            this.triggerSoftBump(obsName, normalOut, impactSpeed);
+                        }
+                    }
+                }
+            }
+        }
+
         // Colisión y despeje sobre el suelo / helipuerto (patines en y = 0.48 m sobre la superficie del terreno)
 
         let terrainElev = 0.0;
@@ -31204,6 +31308,20 @@ class AgriDrone3 {
         const minSkidY = terrainElev + 0.48;
 
         if (this.position.y < minSkidY) {
+
+            if (radarsOff && this.isFlying && !this.isCrashed) {
+                const vertSpeed = Math.abs(Math.min(0, this.velocity.y));
+                const horizSpeed = Math.hypot(this.velocity.x, this.velocity.z);
+                const groundImpactSpeed = Math.hypot(vertSpeed, horizSpeed * 0.65);
+                if (vertSpeed >= 3.6 || (vertSpeed >= 2.0 && horizSpeed >= 4.5)) {
+                    this.position.y = minSkidY;
+                    this.triggerHardCrash('Suelo / Terreno', new THREE.Vector3(0, 1, 0), groundImpactSpeed);
+                    return;
+                } else if (vertSpeed >= 1.6 && this.crashBumpCooldown <= 0) {
+                    this.position.y = minSkidY;
+                    this.triggerSoftBump('Suelo / Terreno', new THREE.Vector3(0, 1, 0), groundImpactSpeed);
+                }
+            }
 
             this.position.y = minSkidY;
 
@@ -31219,6 +31337,502 @@ class AgriDrone3 {
 
         this.updateTransform();
 
+    }
+
+    getPhysicalHitRadius() {
+        const m = this.droneModel || 'T100';
+        if (m === 'T25P') return 0.95;
+        if (m === 'T55') return 1.15;
+        if (m === 'T70P') return 1.25;
+        return 1.45; // T100
+    }
+
+    playImpactSound(isHard) {
+        try {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (!AudioCtx) return;
+            if (!this._impactAudioCtx) this._impactAudioCtx = new AudioCtx();
+            const ctx = this._impactAudioCtx;
+            if (ctx.state === 'suspended') ctx.resume();
+
+            const now = ctx.currentTime;
+            // Golpe grave mecánico (sin sonido eléctrico ni chispa)
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = isHard ? 'triangle' : 'sine';
+            osc.frequency.setValueAtTime(isHard ? 135 : 95, now);
+            osc.frequency.exponentialRampToValueAtTime(28, now + (isHard ? 0.32 : 0.16));
+            gain.gain.setValueAtTime(isHard ? 0.55 : 0.25, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + (isHard ? 0.36 : 0.18));
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(now);
+            osc.stop(now + (isHard ? 0.38 : 0.20));
+
+            if (isHard) {
+                // Crujido corto de fibra de carbono/plástico
+                const bufSize = Math.floor(ctx.sampleRate * 0.22);
+                const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+                const data = buf.getChannelData(0);
+                for (let i = 0; i < bufSize; i++) {
+                    data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufSize * 0.28));
+                }
+                const noise = ctx.createBufferSource();
+                noise.buffer = buf;
+                const bp = ctx.createBiquadFilter();
+                bp.type = 'bandpass';
+                bp.frequency.value = 620;
+                const nGain = ctx.createGain();
+                nGain.gain.setValueAtTime(0.45, now);
+                nGain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+                noise.connect(bp);
+                bp.connect(nGain);
+                nGain.connect(ctx.destination);
+                noise.start(now);
+            }
+        } catch (e) {}
+    }
+
+    applyDirtEffect(intensity = 1.0) {
+        if (!this.modelMesh) return;
+        this.dirtIntensity = Math.min(1.0, Math.max(this.dirtIntensity || 0, intensity));
+        const dirtColor = new THREE.Color(0x5c4732);
+        const factor = 0.28 + 0.42 * this.dirtIntensity;
+        this.modelMesh.traverse((obj) => {
+            if (!obj.isMesh || !obj.material) return;
+            const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+            mats.forEach((mat) => {
+                if (!mat || !mat.color || mat.isMeshBasicMaterial) return;
+                if (!mat.userData) mat.userData = {};
+                if (!mat.userData._origColor) {
+                    mat.userData._origColor = mat.color.clone();
+                    mat.userData._origRoughness = (mat.roughness !== undefined) ? mat.roughness : 0.5;
+                }
+                mat.color.copy(mat.userData._origColor).lerp(dirtColor, factor);
+                if (mat.roughness !== undefined) {
+                    mat.roughness = Math.min(0.95, mat.userData._origRoughness + 0.35 * this.dirtIntensity);
+                }
+                mat.needsUpdate = true;
+            });
+        });
+    }
+
+    spawnDirtSplash(worldPos, count = 22) {
+        const scene = this.group ? this.group.parent : null;
+        if (!scene) return;
+        const dirtGeo = new THREE.DodecahedronGeometry(0.055, 0);
+        const dirtMat = new THREE.MeshStandardMaterial({ color: 0x6b5138, roughness: 0.95, metalness: 0.0 });
+        for (let i = 0; i < count; i++) {
+            const m = new THREE.Mesh(dirtGeo, dirtMat);
+            const s = 0.6 + Math.random() * 1.3;
+            m.scale.set(s, s * 0.7, s);
+            m.position.copy(worldPos);
+            m.position.x += (Math.random() - 0.5) * 0.8;
+            m.position.y += Math.random() * 0.35;
+            m.position.z += (Math.random() - 0.5) * 0.8;
+            scene.add(m);
+            const ang = Math.random() * Math.PI * 2;
+            const spd = 1.5 + Math.random() * 4.5;
+            this.dirtParticles.push({
+                mesh: m,
+                vel: new THREE.Vector3(Math.cos(ang) * spd, 2.0 + Math.random() * 4.2, Math.sin(ang) * spd),
+                life: 2.2 + Math.random() * 1.5
+            });
+        }
+    }
+
+    spawnSpillDroplets(dt) {
+        if (this.crashSpillRemaining <= 0) return;
+        const scene = this.group ? this.group.parent : null;
+        if (!scene) return;
+
+        const drainRate = Math.min(this.crashSpillRemaining, Math.max(8.0, this.tankCapacity * 0.45) * dt);
+        this.crashSpillRemaining = Math.max(0, this.crashSpillRemaining - drainRate);
+        this.waterRemaining = Math.max(0, (this.waterRemaining || 0) - drainRate);
+        this.totalMass = (this.dryMass || 40) + this.waterRemaining;
+        if (this.liquidMesh && this.tankCapacity > 0) {
+            const fraction = Math.max(0.001, this.waterRemaining / this.tankCapacity);
+            this.liquidMesh.scale.set(1.0, fraction, 1.0);
+        }
+
+        if (this.spillParticles.length < 140) {
+            if (!this._spillGeo) this._spillGeo = new THREE.SphereGeometry(0.045, 6, 6);
+            if (!this._spillMat) this._spillMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.78, roughness: 0.15 });
+            for (let i = 0; i < 3; i++) {
+                const drop = new THREE.Mesh(this._spillGeo, this._spillMat);
+                drop.position.copy(this.position);
+                drop.position.x += (Math.random() - 0.5) * 0.45;
+                drop.position.y -= 0.15;
+                drop.position.z += (Math.random() - 0.5) * 0.45;
+                scene.add(drop);
+                const ang = Math.random() * Math.PI * 2;
+                const spd = 0.8 + Math.random() * 2.2;
+                this.spillParticles.push({
+                    mesh: drop,
+                    vel: new THREE.Vector3(Math.cos(ang) * spd, 0.5 + Math.random() * 1.4, Math.sin(ang) * spd),
+                    life: 2.0,
+                    settled: false
+                });
+            }
+        }
+    }
+
+    triggerSoftBump(obsName, normalOut, impactSpeed) {
+        this.crashBumpCooldown = 0.65;
+        const n = normalOut ? normalOut.clone().normalize() : new THREE.Vector3(0, 1, 0);
+        const vn = this.velocity.dot(n);
+        if (vn < 0) {
+            this.velocity.addScaledVector(n, -1.45 * vn);
+        }
+        this.position.addScaledVector(n, 0.30);
+        this.pitchAngle = Math.max(-0.22, Math.min(0.22, (this.pitchAngle || 0) + (Math.random() - 0.5) * 0.14));
+        this.rollAngle = Math.max(-0.22, Math.min(0.22, (this.rollAngle || 0) + (Math.random() - 0.5) * 0.16));
+        this.playImpactSound(false);
+        this.applyDirtEffect(0.22);
+        this.spawnDirtSplash(this.position, 8);
+        if (window.app) {
+            window.app.cameraShake = Math.max(window.app.cameraShake || 0, 0.28);
+            if (typeof window.app.showHUDAlert === 'function') {
+                window.app.showHUDAlert(`⚠️ Golpe suave contra ${obsName} (${impactSpeed.toFixed(1)} m/s) — Sin daño crítico`, 2600, '⚠️');
+            }
+        }
+        this.updateTransform();
+    }
+
+    triggerHardCrash(obsName, normalOut, impactSpeed) {
+        if (this.isCrashed) return;
+        this.isCrashed = true;
+        this.crashPhase = 'falling';
+        this.crashReason = obsName || 'Obstáculo';
+        this.crashSpeed = impactSpeed;
+        this.crashTimer = 0;
+
+        // Detener aspersión, misión y motores por completo
+        this.isSpraying = false;
+        this.isArmed = false;
+        this.rthState = 'idle';
+        this.flightMode = 'manual';
+        for (let i = 0; i < this.rotors.length; i++) {
+            this.rotors[i].targetRPM = 0;
+            this.rotors[i].rpm = 0;
+        }
+
+        const n = normalOut ? normalOut.clone().normalize() : new THREE.Vector3(0, 1, 0);
+        this.velocity.x *= 0.22;
+        this.velocity.z *= 0.22;
+        this.velocity.y = Math.min(-0.5, this.velocity.y * 0.35);
+        // Sin giros continuos: solo inclinación realista hacia el lado del impacto
+        this.crashAngularVel.set(0, 0, 0);
+        this.targetCrashRoll = (Math.random() > 0.5 ? 1 : -1) * (0.40 + Math.random() * 0.22);
+        this.targetCrashPitch = (Math.random() - 0.5) * 0.28;
+
+        const scene = this.group ? this.group.parent : null;
+        this.updateTransform();
+        if (this.group) this.group.updateMatrixWorld(true);
+
+        // 1. Desprender 2 a 4 hélices con física independiente
+        if (scene && this.rotors && this.rotors.length > 0) {
+            const detachCount = Math.min(this.rotors.length, Math.max(2, Math.ceil(this.rotors.length * 0.6)));
+            for (let i = 0; i < detachCount; i++) {
+                const prop = this.rotors[i].prop;
+                if (!prop || !prop.visible) continue;
+                const worldPos = new THREE.Vector3();
+                const worldQuat = new THREE.Quaternion();
+                const worldScale = new THREE.Vector3();
+                prop.getWorldPosition(worldPos);
+                prop.getWorldQuaternion(worldQuat);
+                prop.getWorldScale(worldScale);
+
+                const clone = prop.clone(true);
+                clone.position.copy(worldPos);
+                clone.quaternion.copy(worldQuat);
+                clone.scale.copy(worldScale);
+                clone.visible = true;
+                scene.add(clone);
+                prop.visible = false;
+
+                const ang = Math.random() * Math.PI * 2;
+                const ejectSpd = 2.8 + Math.random() * 4.5;
+                this.detachedDebris.push({
+                    mesh: clone,
+                    vel: new THREE.Vector3(
+                        this.velocity.x * 0.5 + Math.cos(ang) * ejectSpd + n.x * 2.0,
+                        2.5 + Math.random() * 4.0,
+                        this.velocity.z * 0.5 + Math.sin(ang) * ejectSpd + n.z * 2.0
+                    ),
+                    angVel: new THREE.Vector3((Math.random() - 0.5) * 18, (Math.random() - 0.5) * 22, (Math.random() - 0.5) * 18),
+                    bounces: 0
+                });
+            }
+        }
+
+        // 2. Desprender 1 brazo completo y doblar los brazos restantes
+        if (this.armPivots && this.armPivots.length > 0) {
+            const breakIdx = Math.floor(Math.random() * this.armPivots.length);
+            this.armPivots.forEach((ap, idx) => {
+                if (!ap || !ap.group) return;
+                if (idx === breakIdx && scene) {
+                    const worldPos = new THREE.Vector3();
+                    const worldQuat = new THREE.Quaternion();
+                    const worldScale = new THREE.Vector3();
+                    ap.group.getWorldPosition(worldPos);
+                    ap.group.getWorldQuaternion(worldQuat);
+                    ap.group.getWorldScale(worldScale);
+
+                    const armClone = ap.group.clone(true);
+                    armClone.position.copy(worldPos);
+                    armClone.quaternion.copy(worldQuat);
+                    armClone.scale.copy(worldScale);
+                    armClone.visible = true;
+                    scene.add(armClone);
+                    ap.group.visible = false;
+
+                    this.detachedDebris.push({
+                        mesh: armClone,
+                        vel: new THREE.Vector3(
+                            this.velocity.x * 0.4 + (ap.sx || 1) * 2.5 + n.x * 1.5,
+                            1.8 + Math.random() * 2.8,
+                            this.velocity.z * 0.4 + (ap.sz || 1) * 2.5 + n.z * 1.5
+                        ),
+                        angVel: new THREE.Vector3((Math.random() - 0.5) * 10, (Math.random() - 0.5) * 10, (Math.random() - 0.5) * 10),
+                        bounces: 0
+                    });
+                } else {
+                    // Doblar brazo restante según dirección del golpe
+                    ap.group.rotation.x = (Math.random() > 0.5 ? 1 : -1) * (0.28 + Math.random() * 0.32);
+                    ap.group.rotation.z = (ap.sx || 1) * (0.30 + Math.random() * 0.35);
+                    ap.group.rotation.y = (ap.sx || 1) * (ap.sz || 1) * (0.18 + Math.random() * 0.22);
+                }
+            });
+        }
+
+        // 3. Doblar y comprimir el tren de aterrizaje
+        if (this.landingGearGroup) {
+            this.landingGearGroup.rotation.z = (Math.random() > 0.5 ? 1 : -1) * 0.34;
+            this.landingGearGroup.rotation.x = -0.24;
+            this.landingGearGroup.scale.set(1.06, 0.76, 1.04);
+        }
+        if (this.landingGearMeshes && this.landingGearMeshes.length > 0) {
+            this.landingGearMeshes.forEach((m, idx) => {
+                if (!m) return;
+                m.rotation.z = (idx % 2 === 0 ? 1 : -1) * 0.32;
+                m.rotation.x = -0.20;
+                m.scale.set(1.05, 0.78, 1.04);
+            });
+        }
+
+        // 4. Ensuciar el dron con tierra (sin chispas ni humo)
+        this.applyDirtEffect(1.0);
+        this.spawnDirtSplash(this.position, 26);
+
+        // 5. Derrame de líquido si llevaba caldo en el tanque
+        if (this.waterRemaining > 0.25 && this.payloadType !== 'cargo') {
+            this.crashSpillRemaining = this.waterRemaining;
+        }
+
+        this.playImpactSound(true);
+        if (window.app) {
+            window.app.cameraShake = 0.85;
+            if (typeof window.app.onDroneCrashed === 'function') {
+                window.app.onDroneCrashed(this.crashReason, impactSpeed);
+            }
+        }
+    }
+
+    updateCrashDebrisOnly(dt) {
+        const getGroundY = (x, z) => (window.app && window.app.terrain && window.app.terrain.getSurfaceElevationBelow)
+            ? window.app.terrain.getSurfaceElevationBelow(x, z).groundY
+            : 0.0;
+
+        for (let i = this.detachedDebris.length - 1; i >= 0; i--) {
+            const d = this.detachedDebris[i];
+            if (!d.mesh) continue;
+            if (d.bounces < 4) {
+                d.vel.y -= 9.81 * dt;
+                d.mesh.position.addScaledVector(d.vel, dt);
+                d.mesh.rotation.x += d.angVel.x * dt;
+                d.mesh.rotation.y += d.angVel.y * dt;
+                d.mesh.rotation.z += d.angVel.z * dt;
+                const floorY = getGroundY(d.mesh.position.x, d.mesh.position.z) + 0.05;
+                if (d.mesh.position.y <= floorY) {
+                    d.mesh.position.y = floorY;
+                    d.bounces++;
+                    if (d.bounces >= 3 || Math.abs(d.vel.y) < 0.8) {
+                        d.vel.set(0, 0, 0);
+                        d.angVel.set(0, 0, 0);
+                    } else {
+                        d.vel.y = Math.abs(d.vel.y) * 0.32;
+                        d.vel.x *= 0.45;
+                        d.vel.z *= 0.45;
+                        d.angVel.multiplyScalar(0.45);
+                    }
+                }
+            }
+        }
+
+        for (let i = this.dirtParticles.length - 1; i >= 0; i--) {
+            const p = this.dirtParticles[i];
+            p.life -= dt;
+            if (p.life <= 0) {
+                if (p.mesh && p.mesh.parent) p.mesh.parent.remove(p.mesh);
+                this.dirtParticles.splice(i, 1);
+                continue;
+            }
+            p.vel.y -= 9.81 * dt;
+            p.mesh.position.addScaledVector(p.vel, dt);
+            const floorY = getGroundY(p.mesh.position.x, p.mesh.position.z) + 0.03;
+            if (p.mesh.position.y < floorY) {
+                p.mesh.position.y = floorY;
+                p.vel.set(0, 0, 0);
+            }
+        }
+
+        for (let i = this.spillParticles.length - 1; i >= 0; i--) {
+            const s = this.spillParticles[i];
+            s.life -= dt;
+            if (s.life <= 0) {
+                if (s.mesh && s.mesh.parent) s.mesh.parent.remove(s.mesh);
+                this.spillParticles.splice(i, 1);
+                continue;
+            }
+            if (!s.settled) {
+                s.vel.y -= 9.81 * dt;
+                s.mesh.position.addScaledVector(s.vel, dt);
+                const floorY = getGroundY(s.mesh.position.x, s.mesh.position.z) + 0.02;
+                if (s.mesh.position.y <= floorY) {
+                    s.mesh.position.y = floorY;
+                    s.mesh.scale.set(2.4, 0.22, 2.4);
+                    s.vel.set(0, 0, 0);
+                    s.settled = true;
+                }
+            }
+        }
+    }
+
+    updateCrashPhysics(dt) {
+        this.crashTimer += dt;
+        this.updateCrashDebrisOnly(dt);
+        this.spawnSpillDroplets(dt);
+
+        // Apagar rotores rápidamente
+        for (let i = 0; i < this.rotors.length; i++) {
+            this.rotors[i].rpm = Math.max(0, this.rotors[i].rpm - 900 * dt);
+        }
+
+        const terrainElev = (window.app && window.app.terrain && window.app.terrain.getSurfaceElevationBelow)
+            ? window.app.terrain.getSurfaceElevationBelow(this.position.x, this.position.z).groundY
+            : 0.0;
+        const crashRestY = terrainElev + 0.24;
+
+        if (this.crashPhase === 'falling') {
+            this.velocity.y -= 9.81 * dt;
+            this.velocity.x *= Math.max(0, 1.0 - 2.5 * dt);
+            this.velocity.z *= Math.max(0, 1.0 - 2.5 * dt);
+            this.position.addScaledVector(this.velocity, dt);
+
+            // Inclinación suave hacia la postura final sin dar vueltas
+            const tRoll = (this.targetCrashRoll !== undefined) ? this.targetCrashRoll : 0.45;
+            const tPitch = (this.targetCrashPitch !== undefined) ? this.targetCrashPitch : 0.15;
+            const tiltAlpha = Math.min(1.0, dt * 6.0);
+            this.rollAngle += (tRoll - (this.rollAngle || 0)) * tiltAlpha;
+            this.pitchAngle += (tPitch - (this.pitchAngle || 0)) * tiltAlpha;
+
+            if (this.position.y <= crashRestY) {
+                this.position.y = crashRestY;
+                this.velocity.set(0, 0, 0);
+                this.crashAngularVel.set(0, 0, 0);
+                this.crashPhase = 'resting';
+                this.isFlying = false;
+                this.rollAngle = tRoll;
+                this.pitchAngle = tPitch;
+                this.spawnDirtSplash(this.position, 14);
+                this.playImpactSound(false);
+            }
+        }
+        this.updateTransform();
+    }
+
+    repairAndReset() {
+        const removeArr = (arr) => {
+            if (!arr) return;
+            arr.forEach(item => {
+                if (item.mesh && item.mesh.parent) item.mesh.parent.remove(item.mesh);
+            });
+            arr.length = 0;
+        };
+        removeArr(this.detachedDebris);
+        removeArr(this.dirtParticles);
+        removeArr(this.spillParticles);
+
+        if (this.rotors) {
+            this.rotors.forEach(r => {
+                if (r.prop) r.prop.visible = true;
+                r.rpm = 0;
+                r.targetRPM = 0;
+            });
+        }
+        if (this.armPivots) {
+            this.armPivots.forEach(ap => {
+                if (ap && ap.group) {
+                    ap.group.visible = true;
+                    ap.group.rotation.set(0, 0, 0);
+                }
+            });
+        }
+        if (this.landingGearGroup) {
+            this.landingGearGroup.rotation.set(0, 0, 0);
+            this.landingGearGroup.scale.set(1, 1, 1);
+        }
+        if (this.landingGearMeshes) {
+            this.landingGearMeshes.forEach(m => {
+                if (m) {
+                    m.rotation.set(0, 0, 0);
+                    m.scale.set(1, 1, 1);
+                }
+            });
+        }
+        if (this.modelMesh) {
+            this.modelMesh.traverse((obj) => {
+                if (!obj.isMesh || !obj.material) return;
+                const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+                mats.forEach((mat) => {
+                    if (mat && mat.userData && mat.userData._origColor) {
+                        mat.color.copy(mat.userData._origColor);
+                        if (mat.roughness !== undefined && mat.userData._origRoughness !== undefined) {
+                            mat.roughness = mat.userData._origRoughness;
+                        }
+                        mat.needsUpdate = true;
+                    }
+                });
+            });
+        }
+
+        this.isCrashed = false;
+        this.crashPhase = 'none';
+        this.crashReason = '';
+        this.crashSpeed = 0;
+        this.crashSpillRemaining = 0;
+        this.dirtIntensity = 0;
+        this.isFlying = false;
+        this.isArmed = false;
+        this.isLanding = false;
+        this.isSpraying = false;
+        this.velocity.set(0, 0, 0);
+        this.pitchAngle = 0;
+        this.rollAngle = 0;
+        this.yawAngle = 0;
+
+        let terrainElev = 0.0;
+        if (window.app && window.app.terrain && window.app.terrain.getSurfaceElevationBelow) {
+            terrainElev = window.app.terrain.getSurfaceElevationBelow(0, 0).groundY;
+        }
+        this.position.set(0, terrainElev + 0.48, 0);
+        this.waterRemaining = this.tankCapacity;
+        this.totalMass = (this.dryMass || 40) + this.waterRemaining;
+        if (this.liquidMesh && this.tankCapacity > 0) {
+            this.liquidMesh.scale.set(1.0, 1.0, 1.0);
+        }
+        this.updateTransform();
     }
 
 
@@ -43334,8 +43948,19 @@ class OmnidirectionalRadar {
      */
     update(dt) {
         if (!this.enabled) {
+            if (this.drone && this.drone.isFlying && !this.drone.isCrashed) {
+                this.scanObstacles();
+                this.physicalClosestDistance = this.closestDistance;
+                this.physicalClosestVector = this.closestVector ? this.closestVector.clone() : null;
+                this.physicalClosestObstacleName = this.closestObstacleName;
+            } else {
+                this.physicalClosestDistance = Infinity;
+                this.physicalClosestVector = null;
+                this.physicalClosestObstacleName = 'Ninguno';
+            }
             this.closestDistance = Infinity;
             this.closestSector = 'DESACTIVADO';
+            this.isBraking = false;
             if (this.detectionRay) this.detectionRay.visible = false;
             if (this.widget) this.widget.update(dt);
             return;
@@ -43343,6 +43968,9 @@ class OmnidirectionalRadar {
 
         // 1. Escaneo omnidireccional analítico calibrado (con soporte de frenado direccional)
         this.scanObstacles();
+        this.physicalClosestDistance = this.closestDistance;
+        this.physicalClosestVector = this.closestVector ? this.closestVector.clone() : null;
+        this.physicalClosestObstacleName = this.closestObstacleName;
 
         // 2. Sincronización ultrarrápida (Zero CPU) con el Módulo Optimizado Phased Array
         if (this.optimizedPhasedRadar) {
@@ -49974,6 +50602,8 @@ class AgriSimulatorApp3 {
 
             cardRadar: document.getElementById('hud-radar-card'),
 
+            toggleDisableAllRadars: document.getElementById('toggle-disable-all-radars'),
+
             toggleRadarActive: document.getElementById('toggle-radar-active'),
 
             toggleRadarSound: document.getElementById('toggle-radar-sound'),
@@ -50792,13 +51422,77 @@ class AgriSimulatorApp3 {
 
 
 
-        // Toggles de Radar Omnidireccional & AudioSource
+        // Toggles de Radar Omnidireccional, Radar Inferior & AudioSource
+
+        const syncAllRadarsDisabledUI = () => {
+            const omniOff = !(this.radar && this.radar.enabled);
+            const terrainOff = !(this.drone && this.drone.terrainFollowingEnabled);
+            const allOff = omniOff && terrainOff && !!this.allRadarsDisabled;
+            if (this.ui.toggleDisableAllRadars) {
+                this.ui.toggleDisableAllRadars.checked = allOff;
+            }
+            if (this.ui.btnToggleTerrainFollow) {
+                this.ui.btnToggleTerrainFollow.disabled = !!this.allRadarsDisabled;
+                this.ui.btnToggleTerrainFollow.style.opacity = this.allRadarsDisabled ? '0.45' : '';
+                this.ui.btnToggleTerrainFollow.style.pointerEvents = this.allRadarsDisabled ? 'none' : '';
+            }
+            if (this.ui.toggleRadarActive) {
+                this.ui.toggleRadarActive.disabled = !!this.allRadarsDisabled;
+            }
+        };
+
+        this.setAllRadarsDisabled = (disabled) => {
+            this.allRadarsDisabled = !!disabled;
+            if (this.allRadarsDisabled) {
+                if (this.radar) {
+                    this.radar.enabled = false;
+                    this.radar.isBraking = false;
+                    this.radar.closestDistance = Infinity;
+                    this.radar.closestObstacleName = 'Radares Desactivados';
+                    this.radar.closestSector = 'DESACTIVADO';
+                    this.radar.detectedObstacles = [];
+                }
+                if (this.ui.toggleRadarActive) this.ui.toggleRadarActive.checked = false;
+                if (this.drone && this.drone.terrainFollowingEnabled && typeof this.toggleTerrainFollow === 'function') {
+                    this.toggleTerrainFollow(false);
+                }
+                if (typeof this.showHUDAlert === 'function') {
+                    this.showHUDAlert('🚫 Todos los radares DESACTIVADOS (sin frenado ni seguimiento de terreno)', 2800, '🚫');
+                }
+            } else {
+                if (this.radar) {
+                    this.radar.enabled = true;
+                }
+                if (this.ui.toggleRadarActive) this.ui.toggleRadarActive.checked = true;
+                if (typeof this.showHUDAlert === 'function') {
+                    this.showHUDAlert('📡 Radar Omnidireccional ACTIVADO (Seguimiento de terreno disponible)', 2400, '📡');
+                }
+            }
+            syncAllRadarsDisabledUI();
+        };
+
+        if (this.ui.toggleDisableAllRadars) {
+            this.ui.toggleDisableAllRadars.addEventListener('change', (e) => {
+                this.setAllRadarsDisabled(e.target.checked);
+            });
+        }
+
+        const btnRepairDrone = document.getElementById('btn-repair-drone');
+        if (btnRepairDrone) {
+            btnRepairDrone.addEventListener('click', () => {
+                this.repairCrashedDrone();
+            });
+        }
 
         if (this.ui.toggleRadarActive) {
 
             this.ui.toggleRadarActive.addEventListener('change', (e) => {
 
+                if (e.target.checked && this.allRadarsDisabled) {
+                    this.allRadarsDisabled = false;
+                }
                 if (this.radar) this.radar.enabled = e.target.checked;
+                syncAllRadarsDisabledUI();
 
             });
 
@@ -56349,6 +57043,47 @@ updateCamera(dt = 0.016) {
 
         }
 
+        if (this.cameraShake && this.cameraShake > 0.002) {
+            const amp = this.cameraShake * 0.28;
+            this.camera.position.x += (Math.random() - 0.5) * amp;
+            this.camera.position.y += (Math.random() - 0.5) * amp;
+            this.camera.position.z += (Math.random() - 0.5) * amp;
+            this.cameraShake *= Math.exp(-6.5 * safeDt);
+            if (this.cameraShake < 0.005) this.cameraShake = 0;
+        }
+
+    }
+
+    onDroneCrashed(obsName, impactSpeed) {
+        const banner = document.getElementById('crash-impact-banner');
+        const detail = document.getElementById('crash-impact-detail');
+        const kmh = (impactSpeed * 3.6).toFixed(1);
+        if (detail) {
+            detail.textContent = `Impacto contra ${obsName} a ${impactSpeed.toFixed(1)} m/s (${kmh} km/h). Piezas desprendidas, brazos/patines doblados y chasis con tierra.`;
+        }
+        if (banner) {
+            banner.style.display = 'block';
+        }
+        if (typeof this.updateTakeoffUI === 'function') {
+            this.updateTakeoffUI();
+        }
+        if (typeof this.showHUDAlert === 'function') {
+            this.showHUDAlert(`🚨 IMPACTO DETECTADO: ${obsName} (${kmh} km/h)`, 4500, '🚨');
+        }
+    }
+
+    repairCrashedDrone() {
+        if (this.drone && typeof this.drone.repairAndReset === 'function') {
+            this.drone.repairAndReset();
+        }
+        const banner = document.getElementById('crash-impact-banner');
+        if (banner) banner.style.display = 'none';
+        if (typeof this.updateTakeoffUI === 'function') {
+            this.updateTakeoffUI();
+        }
+        if (typeof this.showHUDAlert === 'function') {
+            this.showHUDAlert('🔧 Dron reparado, limpio y listo en helipuerto', 2600, '✅');
+        }
     }
 
 
@@ -57060,17 +57795,39 @@ updateCamera(dt = 0.016) {
 
         const elRadarOmniBtn = document.getElementById('dji-radar-omni-btn');
 
-        if (elRadarOmniBtn && !elRadarOmniBtn._boundClick) {
+        if (elRadarOmniBtn) {
 
-            elRadarOmniBtn._boundClick = true;
+            if (!elRadarOmniBtn._boundClick) {
 
-            elRadarOmniBtn.addEventListener('click', (ev) => {
+                elRadarOmniBtn._boundClick = true;
 
-                ev.stopPropagation();
+                elRadarOmniBtn.addEventListener('click', (ev) => {
 
-                elRadarOmniBtn.classList.toggle('active');
+                    ev.stopPropagation();
 
-            });
+                    if (this.radar) {
+
+                        const nextState = !this.radar.enabled;
+
+                        if (nextState && this.allRadarsDisabled) {
+
+                            this.setAllRadarsDisabled(false);
+
+                        } else {
+
+                            this.radar.enabled = nextState;
+
+                            if (this.ui.toggleRadarActive) this.ui.toggleRadarActive.checked = nextState;
+
+                        }
+
+                    }
+
+                });
+
+            }
+
+            elRadarOmniBtn.classList.toggle('active', !!(this.radar && this.radar.enabled));
 
         }
 
