@@ -9447,9 +9447,9 @@ html body.sidebar-collapsed #virtual-rc-screen .dji-white-action-btn {
                         <span class="label">ðŸ‚ Estrato Inferior / Suelo:</span>
                         <strong id="disp-stratum-inf" class="val-highlight">-- %</strong>
                     </div>
-                    <!-- Interferencia Estela-Rotor a Alta Velocidad (<150 Âµm y >25 L/min) -->
+                    <!-- Interferencia Estela-Rotor a Alta Velocidad (>25 km/h, <190 µm y >=40 L/ha o >=25 L/min) -->
                     <div id="disp-vortex-status" class="droplet-class-hint" style="margin-top:6px; padding:4px 6px; border-radius:4px; font-size:10px; display:block; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); color:#94a3b8;">
-                        ðŸŒ€ Estela-Rotor: Inactiva (&lt;150 Âµm y &gt;25 L/min para vÃ³rtices)
+                        🌀 Estela-Rotor: Inactiva (&gt;25 km/h, &lt;190 µm y &ge;40 L/ha o &ge;25 L/min)
                     </div>
                 </div>
             </section>
@@ -13948,7 +13948,28 @@ class SpraySystem {
             inferior: 0.0,
             total: 0.0
         };
-        this.wakeVortexActive = false; // µm
+        this.wakeVortexActive = false;
+        this._wasVortexActive = false;
+        this.vortexTelemetry = {
+            active: false,
+            speedKmH: 0,
+            vmdUm: 200,
+            flowRate: 15,
+            doseLHa: 0,
+            swathWidthM: 7.2,
+            vortexSpanM: 3.68,
+            rollRadiusM: 0.66,
+            coreOffsetLatM: 1.18,
+            curlAngleDeg: 0,
+            intensity: 0,
+            fV: 0,
+            fVmd: 0,
+            fQ_v: 0,
+            fD_v: 0,
+            fHyd: 0,
+            modelId: 'T55',
+            modelFactor: 1.18
+        };
 
         // Estructura de datos para física de partículas
         this.particles = [];
@@ -13966,6 +13987,19 @@ class SpraySystem {
                 dispX: 0,
                 dispZ: 0,
                 turbPhase: 0,
+                vortexMode: 0,
+                vortexSide: 1,
+                vortexU: 0,
+                vortexRollR: 1.2,
+                vortexCoreLat: 2.4,
+                vortexThetaSpan: 3.5,
+                vortexFrothR: 0,
+                vortexFrothLat: 0,
+                vortexFrothY: 0,
+                vortexLagRate: 3.5,
+                nozzleLat0: 0.4,
+                nozzleLong0: -0.3,
+                nozzleY0: 2.0,
                 pos: new THREE.Vector3(),
                 vel: new THREE.Vector3(),
                 diameter: 200e-6, // metros (~200 um)
@@ -14065,6 +14099,23 @@ class SpraySystem {
     }
 
     /**
+     * Especificaciones aerodinámicas por modelo de dron para vórtices de punta de pala y efecto suelo
+     */
+    getModelVortexSpec(modelId) {
+        const key = (modelId || 'T55').toUpperCase();
+        if (key === 'T25P') {
+            return { modelFactor: 0.82, baseRollR: 0.72, baseCoreLat: 1.06, upperPlumeShare: 0.14, curlBaseDeg: 215, curlGainDeg: 35, nozzleLayout: 'quad_arm_4' };
+        }
+        if (key === 'T70P' || key === 'T70') {
+            return { modelFactor: 1.08, baseRollR: 0.86, baseCoreLat: 1.22, upperPlumeShare: 0.18, curlBaseDeg: 225, curlGainDeg: 38, nozzleLayout: 'quad_arm_4' };
+        }
+        if (key === 'T100') {
+            return { modelFactor: 1.30, baseRollR: 1.02, baseCoreLat: 1.38, upperPlumeShare: 0.20, curlBaseDeg: 235, curlGainDeg: 42, nozzleLayout: 'rear_4' };
+        }
+        return { modelFactor: 1.18, baseRollR: 0.92, baseCoreLat: 1.26, upperPlumeShare: 0.18, curlBaseDeg: 230, curlGainDeg: 40, nozzleLayout: 'rear_4' };
+    }
+
+    /**
      * Obtiene una partícula libre en tiempo O(1) usando puntero circular (ring buffer)
      */
     getFreeParticle() {
@@ -14108,6 +14159,7 @@ class SpraySystem {
         p.splashLife = 0;
         p.canopyTargetY = null;
         p.isUrea = false;
+        p.vortexMode = 0;
         if (prevNozzlePos && nozzleWorldPos.distanceToSquared(prevNozzlePos) < 9.0) {
             const tBack = frameDt > 1e-5 ? Math.max(0.0, Math.min(1.0, subAge / frameDt)) : 0.0;
             p.pos.lerpVectors(nozzleWorldPos, prevNozzlePos, tBack);
@@ -14210,6 +14262,7 @@ class SpraySystem {
         p.life = 0;
         // Vida acoplada al tiempo real de caída (gotas finas quedan más tiempo suspendidas en aire)
         p.maxLife = Math.min(2.8, Math.max(0.55, expectedFall * (1.28 + fineFactor * 0.42) + 0.18 + fineFactor * 0.35));
+        p.vortexMode = 0;
     }
 
     /**
@@ -14228,6 +14281,7 @@ class SpraySystem {
         p.splashLife = 0;
         p.canopyTargetY = null;
         p.isUrea = true;
+        p.vortexMode = 0;
         p.pendingDt = -1;
         p.pos.copy(originWorldPos);
 
@@ -14298,6 +14352,7 @@ class SpraySystem {
                 p.splashLife = 0;
                 p.canopyTargetY = null;
                 p.isUrea = true;
+                p.vortexMode = 0;
                 p.pendingDt = -1;
                 p.pos.copy(pos);
                 p.diameter = 0.0028;
@@ -14339,6 +14394,7 @@ class SpraySystem {
                 p.splashLife = 0;
                 p.canopyTargetY = null;
                 p.isUrea = false;
+                p.vortexMode = 0;
                 p.pendingDt = -1;
                 p.pos.copy(pos);
 
@@ -14389,13 +14445,19 @@ class SpraySystem {
         const isSpraying = this.config.active && this.drone && this.drone.waterRemaining > 0.01 && !inNoSpray;
         const dyeInfo = this.getDyeColorInfo();
 
-        // Calcular parámetros dinámicos de física según DJI Agras T70P
+        // Calcular parámetros dinámicos de física según aeronave agrícola
         const alt = (this.drone && this.drone.position)
             ? Math.max(0.6, this.drone.position.y)
             : 2.4;
         const speedMs = (this.drone && this.drone.velocity)
             ? this.drone.velocity.length()
             : 0.0;
+        const hSpeedMs = (this.drone && this.drone.velocity)
+            ? Math.hypot(this.drone.velocity.x, this.drone.velocity.z)
+            : 0.0;
+        const effSpeedMs = hSpeedMs > 0.05 ? hSpeedMs : speedMs;
+        const speedKmH = effSpeedMs * 3.6;
+
         const flowRate = (CONFIG.spray && CONFIG.spray.flowRate !== undefined) ? CONFIG.spray.flowRate : this.config.flowRate;
         this.config.flowRate = flowRate;
         const maxFlowRef = (this.drone && this.drone.payloadType !== 'spreader' && this.drone.maxFlowRate) ? this.drone.maxFlowRate : 40.0;
@@ -14404,19 +14466,71 @@ class SpraySystem {
         const fD = Math.max(0.0, Math.min(1.0, (vmdUm - 50.0) / 450.0));
         const colFactor = fD * fQ;
 
-        this.currentSwathWidth = CONFIG.spray.calculateSwathWidth(alt, speedMs, flowRate);
+        this.currentSwathWidth = CONFIG.spray.calculateSwathWidth(alt, effSpeedMs, flowRate);
         this.currentVMD = vmdUm;
 
-        // CondiciÃ³n de interferencia estela-rotor a alta velocidad: <150 Âµm y >25 L/min
-        const isVortexCondition = (vmdUm < 150.0 && flowRate > 25.0);
-        this.wakeVortexActive = isVortexCondition;
+        const calcDoseLHa = CONFIG.spray.calculateApplicationDose(flowRate, Math.max(1.0, speedKmH), this.currentSwathWidth);
+        const targetDoseModeVal = (window.app && (window.app.sprayControlMode === 'dose' || window.app.sprayControlMode === 'vra') && CONFIG.spray && CONFIG.spray.targetDose)
+            ? CONFIG.spray.targetDose
+            : 0;
+        const effectiveDoseLHa = Math.max(calcDoseLHa, targetDoseModeVal);
 
         const isSpreader = !!(this.drone && this.drone.payloadType === 'spreader');
+        const isPurge = this.isPurging || (CONFIG.spray && CONFIG.spray.isPurging);
+
+        // Condición física de vórtices estela-rotor (<190 µm y >=40 L/ha o >=25 L/min) tanto en avance (>25 km/h) como en estacionario/descenso
+        const isFineHighFlow = !isSpreader && !isPurge && (vmdUm < 190.0) && (flowRate >= 25.0 || effectiveDoseLHa >= 40.0);
+        const vertVelY = (this.drone && this.drone.velocity) ? this.drone.velocity.y : 0.0;
+        const isForwardVortex = isFineHighFlow && (speedKmH > 25.0);
+        const isStationaryVortex = isFineHighFlow && (speedKmH <= 25.0);
+        const isVortexCondition = isForwardVortex || isStationaryVortex;
+        this.wakeVortexActive = isForwardVortex || (isStationaryVortex && Math.abs(vertVelY) > 0.20);
+
+        const modelId = (this.drone && this.drone.currentModel) ? this.drone.currentModel : 'T55';
+        const spec = this.getModelVortexSpec(modelId);
+        const fV = isForwardVortex ? Math.max(0.05, Math.min(1.0, (speedKmH - 25.0) / 47.0)) : 0.0;
+        const fVmd = isVortexCondition ? Math.max(0.05, Math.min(1.0, (190.0 - vmdUm) / 140.0)) : 0.0;
+        const fQ_v = isVortexCondition ? Math.max(0.0, Math.min(1.0, (flowRate - 25.0) / 25.0)) : 0.0;
+        const fD_v = isVortexCondition ? Math.max(0.0, Math.min(1.0, (effectiveDoseLHa - 40.0) / 80.0)) : 0.0;
+        const fHyd = Math.max(fQ_v, fD_v);
+        const vortexIntensity = isVortexCondition
+            ? spec.modelFactor * (0.45 + 0.55 * fV) * (0.40 + 0.60 * fVmd) * (0.50 + 0.50 * fHyd)
+            : 0.0;
+        const swathScale = 0.92 + 0.16 * Math.max(0.0, Math.min(1.0, ((this.currentSwathWidth || 7.2) - 4.0) / 7.0));
+        const rollRadiusM = spec.baseRollR * (0.86 + 0.14 * fVmd) * swathScale;
+        const coreOffsetLatM = spec.baseCoreLat * (0.94 + 0.08 * fV) * swathScale;
+        const vortexSpanM = (coreOffsetLatM + rollRadiusM) * 2.0;
+        const curlAngleDeg = this.wakeVortexActive ? (spec.curlBaseDeg + spec.curlGainDeg * Math.min(1.15, vortexIntensity)) : 0.0;
+
+        this.vortexTelemetry.active = this.wakeVortexActive;
+        this.vortexTelemetry.speedKmH = speedKmH;
+        this.vortexTelemetry.vmdUm = vmdUm;
+        this.vortexTelemetry.flowRate = flowRate;
+        this.vortexTelemetry.doseLHa = effectiveDoseLHa;
+        this.vortexTelemetry.swathWidthM = this.currentSwathWidth;
+        this.vortexTelemetry.vortexSpanM = vortexSpanM;
+        this.vortexTelemetry.rollRadiusM = rollRadiusM;
+        this.vortexTelemetry.coreOffsetLatM = coreOffsetLatM;
+        this.vortexTelemetry.curlAngleDeg = curlAngleDeg;
+        this.vortexTelemetry.intensity = vortexIntensity;
+        this.vortexTelemetry.fV = fV;
+        this.vortexTelemetry.fVmd = fVmd;
+        this.vortexTelemetry.fQ_v = fQ_v;
+        this.vortexTelemetry.fD_v = fD_v;
+        this.vortexTelemetry.fHyd = fHyd;
+        this.vortexTelemetry.modelId = modelId;
+        this.vortexTelemetry.modelFactor = spec.modelFactor;
+        this._wasVortexActive = this.wakeVortexActive;
+
+        if (this.drone && this.drone.quaternion && (isSpraying || isVortexCondition)) {
+            this.cachedDroneRight.set(1, 0, 0).applyQuaternion(this.drone.quaternion);
+            this.cachedDroneForward.set(0, 0, 1).applyQuaternion(this.drone.quaternion);
+        }
+
         const waterColorOn = (CONFIG.spray && CONFIG.spray.waterColorEnabled !== false);
         const useWaterAdditive = waterColorOn && !dyeInfo.isDye && !isSpreader;
 
         // Ajuste dinámico de textura, blending, tamaño y opacidad estilo flujo del video para Windows
-        const isPurge = this.isPurging || (CONFIG.spray && CONFIG.spray.isPurging);
         const isFineMist = useWaterAdditive && !isPurge && vmdUm <= 160.0;
         const targetMode = !useWaterAdditive ? 'neutral' : (isFineMist ? 'fineMist' : 'water');
         if (this.material) {
@@ -14449,10 +14563,6 @@ class SpraySystem {
 
         // 1. Generación continua sub-frame de nuevas partículas según caudal Q y velocidad del dron
         if (isSpraying) {
-            if (this.drone && this.drone.quaternion) {
-                this.cachedDroneRight.set(1, 0, 0).applyQuaternion(this.drone.quaternion);
-                this.cachedDroneForward.set(0, 0, 1).applyQuaternion(this.drone.quaternion);
-            }
             const activeFlowRate = isPurge ? 2.0 : flowRate; // L/min (caudal real dinámico)
             const safeDt = Math.min(0.05, Math.max(0.001, dt || 0.016));
             const fineFactorSpawn = 1.0 - fD;
@@ -14460,13 +14570,15 @@ class SpraySystem {
             const estAvgLife = Math.min(2.6, Math.max(0.42, (Math.max(0.8, alt - 0.35) / estFallSpeed) * (1.15 + fineFactorSpawn * 0.38) + 0.15 + fineFactorSpawn * 0.22));
             const poolSafeRate = (this.maxParticles * 0.82) / estAvgLife;
             const desiredRate = 2500 + activeFlowRate * 115 + speedMs * 210;
+            const rateCap = 6800;
+            const spawnCap = 420;
             const targetSpawnsPerSec = isPurge
                 ? 240
-                : (activeFlowRate <= 0.01 ? 0 : Math.min(6800, poolSafeRate, desiredRate));
+                : (activeFlowRate <= 0.01 ? 0 : Math.min(rateCap, poolSafeRate, desiredRate));
             this.spawnAccumulator += targetSpawnsPerSec * safeDt;
 
-            const spawns = Math.min(420, Math.floor(this.spawnAccumulator));
-            this.spawnAccumulator = Math.min(420, this.spawnAccumulator - spawns);
+            const spawns = Math.min(spawnCap, Math.floor(this.spawnAccumulator));
+            this.spawnAccumulator = Math.min(spawnCap, this.spawnAccumulator - spawns);
 
             const nozzlePositions = this.drone.getNozzleWorldPositions();
             const droneDown = this.drone.getUpVector().negate();
@@ -14549,73 +14661,116 @@ class SpraySystem {
                     continue;
                 }
 
-                // 1. Campo de viento acoplado: Downwash activo de rotores sincronizado con el tiempo de caída a suelo
+                // 1. Campo de viento acoplado: Downwash activo de rotores + vórtices físicos en u_aire
                 const u_aire = this.downwash.getAirVelocityAt(p.pos, this.tempAirVel);
+                let inForwardWakeVortex = false;
                 if (this.drone && this.drone.position) {
-                    const dx = p.pos.x - this.drone.position.x;
-                    const dz = p.pos.z - this.drone.position.z;
-                    const horizDist = Math.hypot(dx, dz);
-                    const downwashRadius = Math.max(3.2, (this.currentSwathWidth || 7.2) * 0.60);
-                    if (horizDist < downwashRadius && p.pos.y <= this.drone.position.y + 0.5) {
-                        const fallFactor = Math.max(0.45, 1.0 - (horizDist / downwashRadius) * 0.45);
-                        const vDown = (this.drone.isFlying !== false ? (1.45 + 5.45 * Math.pow(fD, 0.85)) : 1.45) * fallFactor;
-                        u_aire.y = -Math.max(Math.abs(u_aire.y), vDown);
-                    }
-                }
-
-                // INTERFERENCIA ESTELA-ROTOR A ALTA VELOCIDAD (<150 Âµm y >25 L/min)
-                // VÃ³rtices marginales de punta de pala que enrollan las gotas finas en espirales helicoidales
-                if (isVortexCondition && this.drone && this.drone.position) {
                     const dronePos = this.drone.position;
                     const fwdX = this.cachedDroneForward.x;
                     const fwdZ = this.cachedDroneForward.z;
                     const rightX = this.cachedDroneRight.x;
                     const rightZ = this.cachedDroneRight.z;
-
                     const dx = p.pos.x - dronePos.x;
                     const dz = p.pos.z - dronePos.z;
-                    const distLong = dx * fwdX + dz * fwdZ; // distancia longitudinal (negativa detrÃ¡s del dron)
+                    const horizDist = Math.hypot(dx, dz);
+                    const distLong = dx * fwdX + dz * fwdZ;
                     const distLat = dx * rightX + dz * rightZ;
                     const distVert = p.pos.y - dronePos.y;
 
-                    if (distLong < 0.20 && distLong > -16.0 && distVert < 0.6 && distVert > -4.5) {
-                        const absLong = Math.abs(distLong);
-                        const wakeSemiWidth = 1.15 + absLong * 0.12;
-                        const coreDepthY = -0.22 - absLong * 0.04;
+                    const downwashRadius = Math.max(3.2, (this.currentSwathWidth || 7.2) * 0.60);
+                    if (horizDist < downwashRadius && p.pos.y <= dronePos.y + 0.5) {
+                        const wakeTaper = (isForwardVortex && distLong < -0.5) ? Math.exp((distLong + 0.5) * 0.85) : 1.0;
+                        const fallFactor = Math.max(0.45, 1.0 - (horizDist / downwashRadius) * 0.45) * wakeTaper;
+                        const vDown = (this.drone.isFlying !== false ? (1.45 + 5.45 * Math.pow(fD, 0.85)) : 1.45) * fallFactor;
+                        u_aire.y = -Math.max(Math.abs(u_aire.y), vDown);
+                    }
 
-                        // VÃ³rtice izquierdo (antihorario en Y-Lat)
-                        const dLatL = distLat - (-wakeSemiWidth);
-                        const dVertL = distVert - coreDepthY;
-                        const rSqL = dLatL * dLatL + dVertL * dVertL;
-                        const rL = Math.sqrt(rSqL);
+                    // VÓRTICES DE ESTELA-ROTOR (100% físicos sobre u_aire en la estela del dron y en estacionario)
+                    if (isVortexCondition) {
+                        if (!isForwardVortex) {
+                            // MODO ESTACIONARIO / DESCENSO VERTICAL (Imagen 2 original):
+                            if (distLong < 0.45 && distLong > -16.0 && distVert < 0.65 && distVert > -4.5) {
+                                const absLong = Math.abs(distLong);
+                                const wakeSemiWidth = 1.15 + absLong * 0.12;
+                                const coreDepthY = -0.22 - absLong * 0.04;
 
-                        // VÃ³rtice derecho (horario en Y-Lat)
-                        const dLatR = distLat - wakeSemiWidth;
-                        const dVertR = distVert - coreDepthY;
-                        const rSqR = dLatR * dLatR + dVertR * dVertR;
-                        const rR = Math.sqrt(rSqR);
+                                const dLatL = distLat - (-wakeSemiWidth);
+                                const dVertL = distVert - coreDepthY;
+                                const rSqL = dLatL * dLatL + dVertL * dVertL;
+                                const rL = Math.sqrt(rSqL);
 
-                        const gamma = 12.0 * (flowRate / 25.0) * (1.0 - vmdUm / 150.0);
-                        const rc = 0.32;
-                        const decayLong = Math.exp(-0.10 * absLong);
+                                const dLatR = distLat - wakeSemiWidth;
+                                const dVertR = distVert - coreDepthY;
+                                const rSqR = dLatR * dLatR + dVertR * dVertR;
+                                const rR = Math.sqrt(rSqR);
 
-                        const vTanL = (gamma / (2.0 * Math.PI)) * (rL / (rSqL + rc * rc)) * decayLong;
-                        const vTanR = (gamma / (2.0 * Math.PI)) * (rR / (rSqR + rc * rc)) * decayLong;
+                                const effFlow = Math.max(flowRate, (effectiveDoseLHa >= 40.0 ? 26.0 : flowRate));
+                                const gamma = 12.0 * (effFlow / 25.0) * Math.max(0.18, (1.0 - vmdUm / 190.0) * 1.25);
+                                const rc = 0.32;
+                                const decayLong = Math.exp(-0.10 * absLong);
 
-                        const invRL = 1.0 / (rL + 1e-4);
-                        const vLatL = vTanL * (dVertL * invRL);
-                        const vUpL = -vTanL * (dLatL * invRL);
+                                const vTanL = (gamma / (2.0 * Math.PI)) * (rL / (rSqL + rc * rc)) * decayLong;
+                                const vTanR = (gamma / (2.0 * Math.PI)) * (rR / (rSqR + rc * rc)) * decayLong;
 
-                        const invRR = 1.0 / (rR + 1e-4);
-                        const vLatR = -vTanR * (dVertR * invRR);
-                        const vUpR = vTanR * (dLatR * invRR);
+                                const invRL = 1.0 / (rL + 1e-4);
+                                const vLatL = vTanL * (dVertL * invRL);
+                                const vUpL = -vTanL * (dLatL * invRL);
 
-                        const netVLat = (vLatL + vLatR) * 0.85;
-                        const netVUp = (vUpL + vUpR) * 0.85;
+                                const invRR = 1.0 / (rR + 1e-4);
+                                const vLatR = -vTanR * (dVertR * invRR);
+                                const vUpR = vTanR * (dLatR * invRR);
 
-                        u_aire.x += rightX * netVLat;
-                        u_aire.y += netVUp;
-                        u_aire.z += rightZ * netVLat;
+                                u_aire.x += rightX * (vLatL + vLatR) * 0.85;
+                                u_aire.y += (vUpL + vUpR) * 0.85;
+                                u_aire.z += rightZ * (vLatL + vLatR) * 0.85;
+                            }
+                        } else {
+                            // MODO VUELO RÁPIDO (>25 km/h): Vórtices generados en la estela horizontal detrás del dron (Imagen 1)
+                            if (distLong < 0.30 && distLong > -20.0 && distVert < 1.2 && distVert > -4.8) {
+                                const absLong = Math.abs(distLong);
+                                const wakeSlope = Math.max(0.04, Math.min(0.20, (1.10 + 2.1 * fD) / Math.max(6.9, effSpeedMs)));
+                                const coreDepthY = -0.22 - absLong * wakeSlope;
+                                const wakeSemiWidth = (spec.baseCoreLat * 0.82) + Math.min(1.05, absLong * 0.10);
+
+                                const dLatL = distLat - (-wakeSemiWidth);
+                                const dVertL = distVert - coreDepthY;
+                                const rSqL = dLatL * dLatL + dVertL * dVertL;
+                                const rL = Math.sqrt(rSqL);
+
+                                const dLatR = distLat - wakeSemiWidth;
+                                const dVertR = distVert - coreDepthY;
+                                const rSqR = dLatR * dLatR + dVertR * dVertR;
+                                const rR = Math.sqrt(rSqR);
+
+                                const effFlow = Math.max(flowRate, (effectiveDoseLHa >= 40.0 ? 28.0 : flowRate));
+                                const gamma = (15.5 + 9.5 * fV) * (effFlow / 25.0) * Math.max(0.22, 1.0 - vmdUm / 190.0) * spec.modelFactor;
+                                const rc = 0.34;
+                                const decayLong = Math.exp(-0.055 * absLong);
+
+                                const vTanL = (gamma / (2.0 * Math.PI)) * (rL / (rSqL + rc * rc)) * decayLong;
+                                const vTanR = (gamma / (2.0 * Math.PI)) * (rR / (rSqR + rc * rc)) * decayLong;
+
+                                const invRL = 1.0 / (rL + 1e-4);
+                                const vLatL = vTanL * (dVertL * invRL);
+                                const vUpL = -vTanL * (dLatL * invRL);
+
+                                const invRR = 1.0 / (rR + 1e-4);
+                                const vLatR = -vTanR * (dVertR * invRR);
+                                const vUpR = vTanR * (dLatR * invRR);
+
+                                const targetR = spec.baseRollR * 0.65;
+                                const radPullL = (distLat < 0 && rL < targetR * 1.85) ? ((targetR - rL) * 2.6 * decayLong) : 0.0;
+                                const radPullR = (distLat >= 0 && rR < targetR * 1.85) ? ((targetR - rR) * 2.6 * decayLong) : 0.0;
+
+                                const netVLat = (vLatL + vLatR) * 0.90 + radPullL * (dLatL * invRL) + radPullR * (dLatR * invRR);
+                                const netVUp = (vUpL + vUpR) * 0.90 + radPullL * (dVertL * invRL) + radPullR * (dVertR * invRR);
+
+                                u_aire.x += rightX * netVLat;
+                                u_aire.y += netVUp;
+                                u_aire.z += rightZ * netVLat;
+                                inForwardWakeVortex = (rL < 1.85 || rR < 1.85);
+                            }
+                        }
                     }
                 }
 
@@ -14670,8 +14825,9 @@ class SpraySystem {
                     }
                 } else {
                     const minDescendSpeed = 1.05 + 5.75 * Math.pow(fD, 0.88);
-                    if (p.vel.y > -minDescendSpeed) {
-                        p.vel.y = -minDescendSpeed;
+                    const maxAllowedVelY = inForwardWakeVortex ? 3.2 : -minDescendSpeed;
+                    if (p.vel.y > maxAllowedVelY) {
+                        p.vel.y = maxAllowedVelY;
                     }
                 }
 
@@ -56455,20 +56611,22 @@ updateCamera(dt = 0.016) {
             if (elInf) elInf.textContent = `${pcts.inferior.toFixed(1)} %`;
         }
 
-        // Estado de Interferencia Estela-Rotor a Alta Velocidad (<150 Âµm y >25 L/min)
+        // Estado de Interferencia Estela-Rotor a Alta Velocidad (>25 km/h, <190 µm y >=40 L/ha o >=25 L/min)
         const elVortex = document.getElementById('disp-vortex-status');
         if (elVortex) {
-            const isVortex = (this.spray || this.spraySystem) && (this.spray || this.spraySystem).wakeVortexActive;
+            const sprayRef = this.spray || this.spraySystem;
+            const isVortex = sprayRef && sprayRef.wakeVortexActive;
+            const vt = sprayRef && sprayRef.vortexTelemetry;
             if (isVortex) {
                 elVortex.style.background = 'rgba(0, 229, 255, 0.22)';
                 elVortex.style.borderColor = '#00e5ff';
                 elVortex.style.color = '#00e5ff';
-                elVortex.innerHTML = 'ðŸŒ€ <strong>VÃ³rtices Estela-Rotor ACTIVOS:</strong> VÃ³rtices de agua generados (<150 Âµm y >25 L/min)';
+                elVortex.innerHTML = `🌀 <strong>Vórtices Estela-Rotor ACTIVOS:</strong> Ancho ${vt ? vt.swathWidthM.toFixed(1) : curSwath.toFixed(1)} m • Rizo ${vt ? vt.curlAngleDeg.toFixed(0) : 210}° (${hSpeed.toFixed(1)} km/h • ${curVMD} µm)`;
             } else {
                 elVortex.style.background = 'rgba(0,0,0,0.3)';
                 elVortex.style.borderColor = 'rgba(255,255,255,0.1)';
                 elVortex.style.color = '#94a3b8';
-                elVortex.innerHTML = 'ðŸŒ€ Estela-Rotor: Inactiva (&lt;150 Âµm y &gt;25 L/min requeridos)';
+                elVortex.innerHTML = '🌀 Estela-Rotor: Inactiva (Req: &gt;25 km/h, &lt;190 µm y &ge;40 L/ha o &ge;25 L/min)';
             }
         }
 
