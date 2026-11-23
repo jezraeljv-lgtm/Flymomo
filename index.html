@@ -9447,6 +9447,19 @@ html body.sidebar-collapsed #virtual-rc-screen .dji-white-action-btn {
                         <span class="label">ðŸ‚ Estrato Inferior / Suelo:</span>
                         <strong id="disp-stratum-inf" class="val-highlight">-- %</strong>
                     </div>
+                    <!-- Dinámica de Vuelo e Inercia Real por Peso Variable -->
+                    <div class="swath-row" style="margin-top:6px; padding-top:6px; border-top:1px dashed rgba(255,255,255,0.15);">
+                        <span class="label">⚖️ Masa Total (Inercia):</span>
+                        <strong id="disp-total-mass-inertia" class="val-highlight">-- kg</strong>
+                    </div>
+                    <div class="swath-row">
+                        <span class="label">📐 Ángulo Cabeceo (Pitch):</span>
+                        <strong id="disp-pitch-angle" class="val-highlight">0.0°</strong>
+                    </div>
+                    <div class="swath-row">
+                        <span class="label">🛑 Frenado Estimado:</span>
+                        <strong id="disp-braking-dist" class="val-highlight">0.0 m (0.0 s)</strong>
+                    </div>
                     <!-- Interferencia Estela-Rotor a Alta Velocidad (>25 km/h, <190 µm y >=40 L/ha o >=25 L/min) -->
                     <div id="disp-vortex-status" class="droplet-class-hint" style="margin-top:6px; padding:4px 6px; border-radius:4px; font-size:10px; display:block; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.1); color:#94a3b8;">
                         🌀 Estela-Rotor: Inactiva (&gt;25 km/h, &lt;190 µm y &ge;40 L/ha o &ge;25 L/min)
@@ -27362,6 +27375,20 @@ class AgriDrone3 {
         this.dirtParticles = [];
         this.dirtIntensity = 0;
 
+        // Dinámica de inercia por peso variable, cabeceo de frenado, oleaje (sloshing) y efecto suelo
+        this.sloshPitch = 0;
+        this.sloshPitchVel = 0;
+        this.sloshRoll = 0;
+        this.sloshRollVel = 0;
+        this.prevVFwdLocal = 0;
+        this.prevVLatLocal = 0;
+        this.isBrakingH = false;
+        this.currentPitchDeg = 0;
+        this.effectiveDecelMs2 = 3.5;
+        this.estimatedBrakingDistM = 0;
+        this.estimatedBrakingTimeS = 0;
+        this.groundEffectFactor = 1.0;
+
         this.terrainFollowClearance = 3.0;   // Altura sobre copa configurada (1.0 - 8.0 m)
 
         this.radarInferiorClearance = 3.0;   // Medición actual en metros
@@ -29097,7 +29124,15 @@ class AgriDrone3 {
             }
         }
 
-        const MAX_TILT = 0.32; // Máximo 18.3° (Permite alcanzar 13.8 m/s de garantía con seguridad anti-volteretas)
+        const MAX_TILT = 0.32; // Máximo 18.3° en crucero normal
+        const dryM = Math.max(15.0, this.dryMass || 65.0);
+        const waterM = Math.max(0.0, this.waterRemaining || 0.0);
+        this.totalMass = dryM + waterM;
+        const loadFraction = (this.tankCapacity > 0) ? Math.max(0.0, Math.min(1.0, waterM / this.tankCapacity)) : 0.0;
+        const massRatio = this.totalMass / dryM; // 1.00 vacío hasta ~2.11 lleno
+        // Con tanque lleno, el controlador permite un mayor ángulo de contra-cabeceo al frenar (hasta ~21.8° / 0.38 rad)
+        const MAX_BRAKE_TILT = 0.26 + 0.12 * loadFraction;
+        this.isBrakingH = false;
 
         let targetPitch = 0;
 
@@ -30147,13 +30182,21 @@ class AgriDrone3 {
 
 
 
-                targetPitch = Math.max(-MAX_TILT, Math.min(MAX_TILT, (vFwdDesired - vFwd) * 0.08));
+                const dvFwd = vFwdDesired - vFwd;
+                const dvRight = vRightDesired - vRight;
+                const isMissionDecel = (dvFwd < -0.25 && vFwd > 0.4);
+                const pitchGainMission = isMissionDecel ? (0.115 * Math.pow(massRatio, 0.45)) : 0.08;
+                const maxMissionPitch = isMissionDecel ? MAX_BRAKE_TILT : MAX_TILT;
+                if (isMissionDecel) this.isBrakingH = true;
 
-                targetRoll  = Math.max(-MAX_TILT, Math.min(MAX_TILT, -(vRightDesired - vRight) * 0.08));
+                targetPitch = Math.max(-maxMissionPitch, Math.min(maxMissionPitch, dvFwd * pitchGainMission));
+
+                targetRoll  = Math.max(-MAX_TILT, Math.min(MAX_TILT, -dvRight * 0.08));
 
 
 
-                // Frenado cinemÃ¡tico activo a lo largo de la lÃ­nea:
+                // Frenado cinemático activo a lo largo de la línea (escalado por inercia de masa total):
+                const inertiaBrakeScale = 1.0 / Math.pow(massRatio, 0.75);
 
                 if (isFinalSprayRow && distToEnd <= 4.0) {
 
@@ -30163,9 +30206,9 @@ class AgriDrone3 {
 
                         const excess = curVAlong - targetSpeed;
 
-                        this.velocity.x -= uX * excess * Math.min(1.0, 5.0 * safeDt);
+                        this.velocity.x -= uX * excess * Math.min(1.0, 5.0 * inertiaBrakeScale * safeDt);
 
-                        this.velocity.z -= uZ * excess * Math.min(1.0, 5.0 * safeDt);
+                        this.velocity.z -= uZ * excess * Math.min(1.0, 5.0 * inertiaBrakeScale * safeDt);
 
                     }
 
@@ -30177,9 +30220,9 @@ class AgriDrone3 {
 
                         const excess = curVAlong - targetSpeed;
 
-                        this.velocity.x -= uX * excess * Math.min(1.0, 6.5 * safeDt);
+                        this.velocity.x -= uX * excess * Math.min(1.0, 6.5 * inertiaBrakeScale * safeDt);
 
-                        this.velocity.z -= uZ * excess * Math.min(1.0, 6.5 * safeDt);
+                        this.velocity.z -= uZ * excess * Math.min(1.0, 6.5 * inertiaBrakeScale * safeDt);
 
                     }
 
@@ -30191,9 +30234,9 @@ class AgriDrone3 {
 
                         const excess = curVAlong - targetSpeed;
 
-                        this.velocity.x -= uX * excess * Math.min(1.0, 8.0 * safeDt);
+                        this.velocity.x -= uX * excess * Math.min(1.0, 8.0 * inertiaBrakeScale * safeDt);
 
-                        this.velocity.z -= uZ * excess * Math.min(1.0, 8.0 * safeDt);
+                        this.velocity.z -= uZ * excess * Math.min(1.0, 8.0 * inertiaBrakeScale * safeDt);
 
                     }
 
@@ -30625,9 +30668,55 @@ class AgriDrone3 {
 
 
 
-            targetPitch = -(manualInputs ? manualInputs.pitch : 0) * MAX_TILT;
+            const inPitch = manualInputs ? (manualInputs.pitch || 0) : 0;
+            const inRoll  = manualInputs ? (manualInputs.roll  || 0) : 0;
 
-            targetRoll  =  (manualInputs ? manualInputs.roll  : 0) * MAX_TILT;
+            // Velocidad horizontal proyectada en los ejes locales del dron:
+            // +vFwdLocal = avanzando hacia el frente (+Z local); +vLatLocal = desplazándose en dirección de +rollAngle (-X local)
+            const sinYawM = Math.sin(this.yawAngle);
+            const cosYawM = Math.cos(this.yawAngle);
+            const vFwdLocal =  this.velocity.x * sinYawM + this.velocity.z * cosYawM;
+            const vLatLocal = -this.velocity.x * cosYawM + this.velocity.z * sinYawM;
+
+            // Ganancia de contra-cabeceo de frenado dependiente del peso (mayor ángulo cuando el tanque va lleno)
+            const brakeGain = 0.045 * (0.85 + 0.55 * loadFraction);
+
+            if (Math.abs(inPitch) < 0.08) {
+                if (Math.abs(vFwdLocal) > 0.18) {
+                    // Contra-cabeceo activo de frenado al soltar la palanca (nariz arriba si iba hacia adelante)
+                    targetPitch = -Math.sign(vFwdLocal) * Math.min(MAX_BRAKE_TILT, Math.abs(vFwdLocal) * brakeGain);
+                    this.isBrakingH = true;
+                } else {
+                    targetPitch = 0;
+                }
+            } else {
+                const cmdPitch = -inPitch * MAX_TILT;
+                // Si el piloto invierte la palanca en contra de la velocidad actual, usar ángulo máximo de frenado
+                if (cmdPitch * vFwdLocal < -0.35) {
+                    targetPitch = -inPitch * MAX_BRAKE_TILT;
+                    this.isBrakingH = true;
+                } else {
+                    targetPitch = cmdPitch;
+                }
+            }
+
+            if (Math.abs(inRoll) < 0.08) {
+                if (Math.abs(vLatLocal) > 0.18) {
+                    // Contra-alabeo activo de frenado al soltar la palanca lateral
+                    targetRoll = -Math.sign(vLatLocal) * Math.min(MAX_BRAKE_TILT, Math.abs(vLatLocal) * brakeGain);
+                    this.isBrakingH = true;
+                } else {
+                    targetRoll = 0;
+                }
+            } else {
+                const cmdRoll = inRoll * MAX_TILT;
+                if (cmdRoll * vLatLocal < -0.35) {
+                    targetRoll = inRoll * MAX_BRAKE_TILT;
+                    this.isBrakingH = true;
+                } else {
+                    targetRoll = cmdRoll;
+                }
+            }
 
 
 
@@ -30853,21 +30942,58 @@ class AgriDrone3 {
 
 
 
-        // Respuesta dinámica suave y críticamente amortiguada con interpolación exponencial (cero movimientos secos)
+        // Respuesta dinámica de actitud con inercia rotacional variable según peso del tanque y oleaje (sloshing)
+        const curSinY = Math.sin(this.yawAngle);
+        const curCosY = Math.cos(this.yawAngle);
+        const curVFwd =  this.velocity.x * curSinY + this.velocity.z * curCosY;
+        const curVLat = -this.velocity.x * curCosY + this.velocity.z * curSinY;
+        const accelFwd = (curVFwd - (this.prevVFwdLocal || 0)) / safeDt;
+        const accelLat = (curVLat - (this.prevVLatLocal || 0)) / safeDt;
+        this.prevVFwdLocal = curVFwd;
+        this.prevVLatLocal = curVLat;
 
-        const tiltAlpha = 1.0 - Math.exp(-5.5 * safeDt);
+        // Oscilador amortiguado de oleaje interno del líquido (sloshing), máximo entre 35% y 80% de llenado
+        const sloshAmp = 4.0 * loadFraction * (1.0 - loadFraction * 0.62);
+        if (sloshAmp > 0.02) {
+            const wn = 5.4; // frecuencia natural de oleaje (rad/s)
+            const zeta = 0.44;
+            const clampAccF = Math.max(-8.0, Math.min(8.0, accelFwd));
+            const clampAccL = Math.max(-8.0, Math.min(8.0, accelLat));
+            this.sloshPitchVel += (-wn * wn * this.sloshPitch - 2 * zeta * wn * this.sloshPitchVel - clampAccF * 0.012 * sloshAmp) * safeDt;
+            this.sloshRollVel  += (-wn * wn * this.sloshRoll  - 2 * zeta * wn * this.sloshRollVel  - clampAccL * 0.012 * sloshAmp) * safeDt;
+            this.sloshPitch = Math.max(-0.048, Math.min(0.048, this.sloshPitch + this.sloshPitchVel * safeDt));
+            this.sloshRoll  = Math.max(-0.048, Math.min(0.048, this.sloshRoll  + this.sloshRollVel  * safeDt));
+        } else {
+            this.sloshPitch *= Math.exp(-8.0 * safeDt);
+            this.sloshRoll  *= Math.exp(-8.0 * safeDt);
+            this.sloshPitchVel = 0;
+            this.sloshRollVel = 0;
+        }
 
-        this.pitchAngle += (targetPitch - this.pitchAngle) * tiltAlpha;
+        // Velocidad de respuesta angular inversamente proporcional a la inercia (massRatio)
+        const tiltRate = this.isBrakingH
+            ? (7.5 / Math.pow(massRatio, 0.42))
+            : (6.6 / Math.pow(massRatio, 0.72));
+        const tiltAlpha = 1.0 - Math.exp(-tiltRate * safeDt);
 
-        this.rollAngle  += (targetRoll  - this.rollAngle)  * tiltAlpha;
+        const desiredPitchWithSlosh = targetPitch + this.sloshPitch;
+        const desiredRollWithSlosh  = targetRoll  + this.sloshRoll;
+
+        this.pitchAngle += (desiredPitchWithSlosh - this.pitchAngle) * tiltAlpha;
+
+        this.rollAngle  += (desiredRollWithSlosh  - this.rollAngle)  * tiltAlpha;
 
 
 
         // BARRERA DE SEGURIDAD ESTRICTA: Acotamiento incondicional (Garantiza cero volteretas)
+        const effectiveMaxTilt = Math.max(MAX_TILT, MAX_BRAKE_TILT);
 
-        this.pitchAngle = Math.max(-MAX_TILT, Math.min(MAX_TILT, this.pitchAngle));
+        this.pitchAngle = Math.max(-effectiveMaxTilt, Math.min(effectiveMaxTilt, this.pitchAngle));
 
-        this.rollAngle  = Math.max(-MAX_TILT, Math.min(MAX_TILT, this.rollAngle));
+        this.rollAngle  = Math.max(-effectiveMaxTilt, Math.min(effectiveMaxTilt, this.rollAngle));
+
+        this.currentPitchDeg = (this.pitchAngle * 180.0) / Math.PI;
+        this.currentRollDeg  = (this.rollAngle * 180.0) / Math.PI;
 
 
 
@@ -31020,11 +31146,21 @@ class AgriDrone3 {
 
 
 
-        // Fuerza de empuje orientada según el vector normal del dron
-
-        // Como la inclinación máxima es 13.5°, droneUp.y siempre es >= 0.97 (siempre vertical hacia arriba)
-
+        // Fuerza de empuje orientada según el vector normal del dron + Efecto Suelo (Ground Effect < 1.5m)
         const thrustForce = droneUp.clone().multiplyScalar(totalThrustMag);
+
+        let surfaceClearance = this.position.y;
+        if (window.app && window.app.terrain && typeof window.app.terrain.getSurfaceElevationBelow === 'function') {
+            const surfBelow = window.app.terrain.getSurfaceElevationBelow(this.position.x, this.position.z);
+            surfaceClearance = Math.max(0.05, this.position.y - (surfBelow.obstacleTopY || surfBelow.groundY || 0));
+        }
+        if (surfaceClearance < 1.50) {
+            const geRatio = (1.50 - surfaceClearance) / 1.50;
+            this.groundEffectFactor = 1.0 + 0.12 * (geRatio * geRatio);
+            thrustForce.y *= this.groundEffectFactor;
+        } else {
+            this.groundEffectFactor = 1.0;
+        }
 
 
 
@@ -31088,15 +31224,41 @@ class AgriDrone3 {
 
 
 
-        // Amortiguación exponencial suave y progresiva de traslación al no presionar flechas en modo manual
+        // Desaceleración física dependiente del peso total (inercia real: lleno tarda casi el doble en frenar que vacío)
+        const dryM = Math.max(15.0, this.dryMass || 65.0);
+        const waterM = Math.max(0.0, this.waterRemaining || 0.0);
+        this.totalMass = dryM + waterM;
+        const massRatio = this.totalMass / dryM; // 1.0 vacío -> ~2.3 lleno
+        const loadFraction = (this.tankCapacity > 0) ? Math.max(0, Math.min(1, waterM / this.tankCapacity)) : 0;
+
+        // Cuando el dron frena con carga pesada, aunque inclina más la nariz (hasta ~21°), la autoridad horizontal
+        // por kilogramo de masa total disminuye por el límite de potencia disponible (F_max / m_total):
+        if (this.isBrakingH && massRatio > 1.02) {
+            const horizBrakeAuthority = 1.0 / Math.pow(massRatio, 0.68);
+            thrustForce.x *= horizBrakeAuthority;
+            thrustForce.z *= horizBrakeAuthority;
+        }
+
+        // Tasa de frenado electrónico + aerodinámico escalada inversamente con la masa total
+        const massBrakeRate = 1.50 / Math.pow(massRatio, 1.55);
+        // Desaceleración media efectiva (m/s^2) para telemetría y cálculo de distancia de frenado:
+        // Vacío (~4.8 m/s^2) vs Lleno (~2.4 m/s^2)
+        this.effectiveDecelMs2 = (4.80 / Math.pow(massRatio, 0.90));
+        this.estimatedBrakingTimeS = (hSpeed > 0.15) ? (hSpeed / this.effectiveDecelMs2) : 0.0;
+        this.estimatedBrakingDistM = (hSpeed > 0.15) ? ((hSpeed * hSpeed) / (2.0 * this.effectiveDecelMs2)) : 0.0;
 
         if (this.rthState === 'idle' && this.flightMode !== 'mission' && manualInputs && Math.abs(manualInputs.pitch) < 0.05 && Math.abs(manualInputs.roll) < 0.05) {
 
-            const brakeDecay = Math.exp(-2.6 * safeDt);
+            const brakeDecay = Math.exp(-massBrakeRate * safeDt);
 
             this.velocity.x *= brakeDecay;
 
             this.velocity.z *= brakeDecay;
+
+            if (Math.hypot(this.velocity.x, this.velocity.z) < 0.09) {
+                this.velocity.x = 0;
+                this.velocity.z = 0;
+            }
 
         }
 
@@ -57362,6 +57524,39 @@ updateCamera(dt = 0.016) {
                 elVortex.style.borderColor = 'rgba(255,255,255,0.1)';
                 elVortex.style.color = '#94a3b8';
                 elVortex.innerHTML = '🌀 Estela-Rotor: Inactiva (Req: &gt;25 km/h, &lt;190 µm y &ge;40 L/ha o &ge;25 L/min)';
+            }
+        }
+
+        // Telemetría de Dinámica de Vuelo, Inercia por Peso Variable, Ángulo de Cabeceo y Distancia de Frenado
+        const elMassInertia = document.getElementById('disp-total-mass-inertia');
+        const elPitchAngle  = document.getElementById('disp-pitch-angle');
+        const elBrakingDist = document.getElementById('disp-braking-dist');
+        if (this.drone) {
+            const d = this.drone;
+            const loadPct = (d.tankCapacity > 0) ? Math.round((Math.max(0, d.waterRemaining || 0) / d.tankCapacity) * 100) : 0;
+            if (elMassInertia) {
+                elMassInertia.textContent = `${(d.totalMass || 0).toFixed(1)} kg (${loadPct}% carga)`;
+            }
+            if (elPitchAngle) {
+                const pDeg = d.currentPitchDeg || ((d.pitchAngle || 0) * 180 / Math.PI);
+                if (d.isBrakingH && Math.abs(pDeg) > 1.2) {
+                    elPitchAngle.textContent = `${pDeg >= 0 ? '+' : ''}${pDeg.toFixed(1)}° (Frenando)`;
+                    elPitchAngle.style.color = '#f59e0b';
+                } else if (Math.abs(pDeg) > 1.2) {
+                    elPitchAngle.textContent = `${pDeg >= 0 ? '+' : ''}${pDeg.toFixed(1)}° (${pDeg > 0 ? 'Avance' : 'Retroceso'})`;
+                    elPitchAngle.style.color = '#38bdf8';
+                } else {
+                    elPitchAngle.textContent = `${pDeg.toFixed(1)}° (Nivelado)`;
+                    elPitchAngle.style.color = '';
+                }
+            }
+            if (elBrakingDist) {
+                const bDist = d.estimatedBrakingDistM || 0;
+                const bTime = d.estimatedBrakingTimeS || 0;
+                const geTag = (d.groundEffectFactor && d.groundEffectFactor > 1.015) ? ' • Efecto Suelo' : '';
+                elBrakingDist.textContent = (bDist > 0.05)
+                    ? `${bDist.toFixed(1)} m (${bTime.toFixed(1)} s)${geTag}`
+                    : `0.0 m (0.0 s)${geTag}`;
             }
         }
 
