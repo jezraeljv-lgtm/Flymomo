@@ -17549,46 +17549,113 @@ function createRoundedBox(width, height, depth, radius, smoothness = 8, creaseCo
 
 
 
+let _cachedTankPolymerTex = null;
 function createTankPolymerTexture() {
-
     if (typeof document === 'undefined') return null;
+    if (_cachedTankPolymerTex) return _cachedTankPolymerTex;
 
     const canvas = document.createElement('canvas');
-
-    canvas.width = 128;
-
-    canvas.height = 128;
-
+    canvas.width = 256;
+    canvas.height = 256;
     const ctx = canvas.getContext('2d');
 
-    ctx.fillStyle = '#f3f5f8';
+    // Base opaca mate de polietileno de alta densidad (HDPE) moldeado por rotomoldeo
+    ctx.fillStyle = '#e7ecf2';
+    ctx.fillRect(0, 0, 256, 256);
 
-    ctx.fillRect(0, 0, 128, 128);
+    // Micro-granulado rugoso de rotomoldeo industrial (sin translucidez)
+    for (let i = 0; i < 9500; i++) {
+        const x = Math.random() * 256;
+        const y = Math.random() * 256;
+        const v = 212 + Math.floor(Math.random() * 34);
+        ctx.fillStyle = `rgb(${v},${v + 2},${v + 5})`;
+        const sz = 1.0 + Math.random() * 1.8;
+        ctx.fillRect(x, y, sz, sz);
+    }
 
-    for (let i = 0; i < 1600; i++) {
-
-        const x = Math.random() * 128;
-
-        const y = Math.random() * 128;
-
-        const v = 232 + Math.floor(Math.random() * 22);
-
-        ctx.fillStyle = `rgb(${v},${v + 1},${v + 2})`;
-
-        ctx.fillRect(x, y, 1.4, 1.4);
-
+    // Poros sutiles de molde para relieve bumpMap
+    for (let i = 0; i < 1800; i++) {
+        const x = Math.random() * 256;
+        const y = Math.random() * 256;
+        ctx.fillStyle = (i % 2 === 0) ? 'rgba(180, 188, 198, 0.35)' : 'rgba(250, 252, 255, 0.35)';
+        ctx.beginPath();
+        ctx.arc(x, y, 0.8 + Math.random() * 1.4, 0, Math.PI * 2);
+        ctx.fill();
     }
 
     const tex = new THREE.CanvasTexture(canvas);
-
     tex.wrapS = THREE.RepeatWrapping;
-
     tex.wrapT = THREE.RepeatWrapping;
-
-    tex.repeat.set(3, 3);
-
+    tex.repeat.set(4, 4);
+    _cachedTankPolymerTex = tex;
     return tex;
+}
 
+let _cachedMattePlasticTex = null;
+function createMattePlasticGrainTexture() {
+    if (typeof document === 'undefined') return null;
+    if (_cachedMattePlasticTex) return _cachedMattePlasticTex;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 256;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#d8dce2';
+    ctx.fillRect(0, 0, 256, 256);
+
+    for (let i = 0; i < 11000; i++) {
+        const x = Math.random() * 256;
+        const y = Math.random() * 256;
+        const v = 196 + Math.floor(Math.random() * 44);
+        ctx.fillStyle = `rgb(${v},${v},${v + 2})`;
+        ctx.fillRect(x, y, 1.3, 1.3);
+    }
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(5, 5);
+    _cachedMattePlasticTex = tex;
+    return tex;
+}
+
+let _cachedCarbonWeaveTex = null;
+function createCarbonWeaveTexture() {
+    if (typeof document === 'undefined') return null;
+    if (_cachedCarbonWeaveTex) return _cachedCarbonWeaveTex;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 256;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#181b20';
+    ctx.fillRect(0, 0, 256, 256);
+
+    // Trama diagonal 2x2 Twill de fibra de carbono 3K
+    const step = 8;
+    for (let y = 0; y < 256; y += step) {
+        for (let x = 0; x < 256; x += step) {
+            const phase = ((x / step) + (y / step)) % 4;
+            if (phase === 0 || phase === 1) {
+                ctx.fillStyle = (phase === 0) ? '#2b303a' : '#232830';
+                ctx.fillRect(x, y, step - 1, step - 1);
+                ctx.fillStyle = 'rgba(255,255,255,0.07)';
+                ctx.fillRect(x, y, step - 2, 2);
+            } else {
+                ctx.fillStyle = (phase === 2) ? '#12151a' : '#161a20';
+                ctx.fillRect(x, y, step - 1, step - 1);
+                ctx.fillStyle = 'rgba(255,255,255,0.03)';
+                ctx.fillRect(x, y, 2, step - 2);
+            }
+        }
+    }
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(14, 4);
+    _cachedCarbonWeaveTex = tex;
+    return tex;
 }
 
 
@@ -17699,25 +17766,29 @@ function getAgrasSharedMaterials() {
 
     if (__agrasSharedMats) return __agrasSharedMats;
 
+    const carbonWeaveTex = (typeof createCarbonWeaveTexture === 'function') ? createCarbonWeaveTexture() : null;
+    const mattePlasticTex = (typeof createMattePlasticGrainTexture === 'function') ? createMattePlasticGrainTexture() : null;
+
     __agrasSharedMats = {
 
         bladeCarbon: new THREE.MeshStandardMaterial({
 
-            color: 0x14171c,
-
-            roughness: 0.78,
-
-            metalness: 0.04
+            color: 0x1c2026,
+            map: carbonWeaveTex,
+            bumpMap: carbonWeaveTex,
+            bumpScale: 0.0032,
+            roughness: 0.56,
+            metalness: 0.12
 
         }),
 
         bladeOrange: new THREE.MeshStandardMaterial({
 
-            color: 0xff5a14,
-
-            roughness: 0.34,
-
-            metalness: 0.05
+            color: 0xf45612,
+            bumpMap: mattePlasticTex,
+            bumpScale: 0.0020,
+            roughness: 0.52,
+            metalness: 0.04
 
         }),
 
@@ -17725,49 +17796,49 @@ function getAgrasSharedMaterials() {
 
             color: 0xd8dfe8,
 
-            roughness: 0.24,
+            roughness: 0.28,
 
-            metalness: 0.55
+            metalness: 0.52
 
         }),
 
         dark: new THREE.MeshStandardMaterial({
 
-            color: 0x16181d,
-
-            roughness: 0.42,
-
-            metalness: 0.22
+            color: 0x171a20,
+            bumpMap: mattePlasticTex,
+            bumpScale: 0.0028,
+            roughness: 0.68,
+            metalness: 0.08
 
         }),
 
         orange: new THREE.MeshStandardMaterial({
 
-            color: 0xff5a14,
-
-            roughness: 0.28,
-
-            metalness: 0.08
+            color: 0xf45612,
+            bumpMap: mattePlasticTex,
+            bumpScale: 0.0020,
+            roughness: 0.54,
+            metalness: 0.04
 
         }),
 
         battDark: new THREE.MeshStandardMaterial({
 
-            color: 0x232730,
-
-            roughness: 0.45,
-
-            metalness: 0.22
+            color: 0x242830,
+            bumpMap: mattePlasticTex,
+            bumpScale: 0.0032,
+            roughness: 0.70,
+            metalness: 0.08
 
         }),
 
         battSlate: new THREE.MeshStandardMaterial({
 
-            color: 0x484f5c,
-
-            roughness: 0.42,
-
-            metalness: 0.20
+            color: 0x4a515e,
+            bumpMap: mattePlasticTex,
+            bumpScale: 0.0030,
+            roughness: 0.66,
+            metalness: 0.10
 
         }),
 
@@ -18140,6 +18211,16 @@ function createAgrasBladeSectionGeometry(span, sideSign, spinDir, isTipSection =
     const geom = new THREE.BufferGeometry();
 
     geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+
+    // Coordenadas UV para trama 3K de fibra de carbono a lo largo de la envergadura y cuerda de la pala
+    const uvArr = new Float32Array((positions.length / 3) * 2);
+    for (let vi = 0; vi < positions.length / 3; vi++) {
+        const px = positions[vi * 3];
+        const pz = positions[vi * 3 + 2];
+        uvArr[vi * 2] = Math.abs(px) / Math.max(0.1, span);
+        uvArr[vi * 2 + 1] = (pz + 0.05) * 10.0;
+    }
+    geom.setAttribute('uv', new THREE.Float32BufferAttribute(uvArr, 2));
 
     geom.setIndex(indices);
 
@@ -18739,266 +18820,144 @@ function createRealisticAgrasT70P() {
 
 
 
-    // Textura sutil de polímero blanco moldeado de alta densidad para el tanque de 70L
-
-    function createTankPolymerTexture() {
-
-        if (typeof document === 'undefined') return null;
-
-        const canvas = document.createElement('canvas');
-
-        canvas.width = 128;
-
-        canvas.height = 128;
-
-        const ctx = canvas.getContext('2d');
-
-        ctx.fillStyle = '#f3f5f8';
-
-        ctx.fillRect(0, 0, 128, 128);
-
-        for (let i = 0; i < 1600; i++) {
-
-            const x = Math.random() * 128;
-
-            const y = Math.random() * 128;
-
-            const v = 232 + Math.floor(Math.random() * 22);
-
-            ctx.fillStyle = `rgb(${v},${v + 1},${v + 2})`;
-
-            ctx.fillRect(x, y, 1.4, 1.4);
-
-        }
-
-        const tex = new THREE.CanvasTexture(canvas);
-
-        tex.wrapS = THREE.RepeatWrapping;
-
-        tex.wrapT = THREE.RepeatWrapping;
-
-        tex.repeat.set(3, 3);
-
-        return tex;
-
-    }
-
-
-
     // =========================================================================
-
-    // PALETA DE COLORES Y MATERIALES EXACTOS DEL DJI AGRAS T70P (REFERENCIAS)
-
+    // PALETA DE MATERIALES PBR MATE INDUSTRIAL DJI AGRAS T70P (TANQUE OPACO + FIBRA 3K)
     // =========================================================================
 
     const tankTex = createTankPolymerTexture();
+    const plasticGrainTex = (typeof createMattePlasticGrainTexture === 'function') ? createMattePlasticGrainTexture() : tankTex;
+    const carbonWeaveTex = (typeof createCarbonWeaveTexture === 'function') ? createCarbonWeaveTexture() : null;
 
     const matTankWhite = new THREE.MeshStandardMaterial({
-
-        color: 0xc8cfd9,
-
+        color: 0xdce2ea,
         map: tankTex,
-
-        roughness: 0.58,
-
-        metalness: 0.02
-
+        bumpMap: tankTex,
+        bumpScale: 0.0052,
+        roughness: 0.78,
+        metalness: 0.01,
+        transparent: false,
+        opacity: 1.0
     });
 
-
-
-    // Gris azulado claro satinado exacto del carenado frontal, radar superior, antenas RTK y radar trasero
-
+    // Plástico industrial gris azulado mate del carenado frontal, radar superior, antenas RTK y radar trasero
     const matCanopyGrey = new THREE.MeshStandardMaterial({
-
-        color: 0x9ea7b5,
-
-        roughness: 0.36,
-
-        metalness: 0.14,
-
+        color: 0x9aa3b1,
+        map: plasticGrainTex,
+        bumpMap: plasticGrainTex,
+        bumpScale: 0.0032,
+        roughness: 0.66,
+        metalness: 0.06,
         side: THREE.DoubleSide
-
     });
 
-
-
-    // Gris pizarra medio-oscuro de la batería DB2160 y sus rieles laterales
-
+    // Polímero gris pizarra mate de la batería DB2160 y sus rieles laterales
     const matBatterySlate = new THREE.MeshStandardMaterial({
-
-        color: 0x58606d,
-
-        roughness: 0.42,
-
-        metalness: 0.18
-
+        color: 0x525a67,
+        bumpMap: plasticGrainTex,
+        bumpScale: 0.0032,
+        roughness: 0.68,
+        metalness: 0.09
     });
 
     const matBatteryDark = new THREE.MeshStandardMaterial({
-
-        color: 0x32363f,
-
-        roughness: 0.46,
-
-        metalness: 0.20
-
+        color: 0x2c3039,
+        bumpMap: plasticGrainTex,
+        bumpScale: 0.0035,
+        roughness: 0.72,
+        metalness: 0.08
     });
 
-
-
-    // Negro mate/satinado estructural (chasis, patines, soportes inferiores de motor, mazas, atomizadores)
-
+    // Polímero negro mate estructural (chasis, patines, soportes inferiores de motor, mazas, atomizadores)
     const matDarkFrame = new THREE.MeshStandardMaterial({
-
-        color: 0x17191d,
-
-        roughness: 0.44,
-
-        metalness: 0.22
-
+        color: 0x17191e,
+        bumpMap: plasticGrainTex,
+        bumpScale: 0.0034,
+        roughness: 0.70,
+        metalness: 0.08
     });
 
-
-
-    // Tubos de fibra de carbono 3K de los 4 brazos
-
+    // Tubos de fibra de carbono 3K tejida de los 4 brazos
     const matCarbonTube = new THREE.MeshStandardMaterial({
-
-        color: 0x22252b,
-
-        roughness: 0.32,
-
-        metalness: 0.30
-
+        color: 0x20242c,
+        map: carbonWeaveTex,
+        bumpMap: carbonWeaveTex,
+        bumpScale: 0.0035,
+        roughness: 0.50,
+        metalness: 0.16
     });
 
-
-
-    // Aluminio plateado claro brillante para disipadores ESC y campanas de motores
-
+    // Aluminio anodizado mate para disipadores ESC y campanas de motores
     const matAluminumFin = new THREE.MeshStandardMaterial({
-
-        color: 0xd0d6de,
-
-        roughness: 0.28,
-
-        metalness: 0.20
-
+        color: 0xcdd4dd,
+        roughness: 0.34,
+        metalness: 0.42
     });
-
-
 
     const matMotorPlate = new THREE.MeshStandardMaterial({
-
-        color: 0xdce1e8,
-
-        roughness: 0.26,
-
-        metalness: 0.22
-
+        color: 0xd6dce4,
+        roughness: 0.34,
+        metalness: 0.38
     });
 
     const matStatorRing = new THREE.MeshStandardMaterial({
-
-        color: 0xb2b9c4,
-
-        roughness: 0.32,
-
-        metalness: 0.24
-
+        color: 0xadb5c0,
+        roughness: 0.38,
+        metalness: 0.34
     });
 
-
-
-    // Palas de hélice en gris carbón medio-claro como en las imágenes de referencia
-
+    // Palas de hélice en compuesto de fibra de carbono 3K tejida
     const matBladeCarbon = new THREE.MeshStandardMaterial({
-
-        color: 0x565b64,
-
-        roughness: 0.36,
-
-        metalness: 0.14
-
-    });
-
-
-
-    // Naranja de seguridad (puntas de hélice, válvula de tapa del tanque, collarín de atomizadores)
-
-    const matSafetyOrange = new THREE.MeshStandardMaterial({
-
-        color: 0xff5a14,
-
-        roughness: 0.32,
-
-        metalness: 0.08
-
-    });
-
-
-
-    // Tapa lobulada gris verdoso suave (sage grey) del tanque de 70L
-
-    const matCapGrey = new THREE.MeshStandardMaterial({
-
-        color: 0x8a9592,
-
-        roughness: 0.42,
-
+        color: 0x1e2229,
+        map: carbonWeaveTex,
+        bumpMap: carbonWeaveTex,
+        bumpScale: 0.0032,
+        roughness: 0.54,
         metalness: 0.12
-
     });
 
+    // Polímero naranja mate de seguridad (puntas de hélice, válvula de tapa del tanque, collarín de atomizadores)
+    const matSafetyOrange = new THREE.MeshStandardMaterial({
+        color: 0xf25613,
+        bumpMap: plasticGrainTex,
+        bumpScale: 0.0022,
+        roughness: 0.54,
+        metalness: 0.04
+    });
 
+    // Tapa lobulada gris verdoso mate del tanque de 70L
+    const matCapGrey = new THREE.MeshStandardMaterial({
+        color: 0x848f8c,
+        map: plasticGrainTex,
+        bumpMap: plasticGrainTex,
+        bumpScale: 0.0032,
+        roughness: 0.68,
+        metalness: 0.06
+    });
 
     const matRedBadge = new THREE.MeshBasicMaterial({ color: 0xff3b2f });
-
     const matEscLedGreen = new THREE.MeshBasicMaterial({ color: 0x0a2a12 });
-
     const matNavLedRed = new THREE.MeshBasicMaterial({ color: 0x3a0808 });
-
     const matNavLedGreen = new THREE.MeshBasicMaterial({ color: 0x0a2a12 });
-
     const matNavHaloRed = new THREE.MeshBasicMaterial({ color: 0xff2244, transparent: true, opacity: 0.82, side: THREE.DoubleSide });
-
     const matNavHaloGreen = new THREE.MeshBasicMaterial({ color: 0x22ff66, transparent: true, opacity: 0.82, side: THREE.DoubleSide });
-
     const matHeadlightLens = new THREE.MeshBasicMaterial({ color: 0x282c34 });
-
     const matDownlightLens = new THREE.MeshBasicMaterial({ color: 0x20242b });
-
     const matLedMatrixYellow = new THREE.MeshBasicMaterial({ color: 0x221a00 });
 
-
-
     const matSightGlass = new THREE.MeshStandardMaterial({
-
-        color: 0xffffff,
-
-        transparent: true,
-
-        opacity: 0.35,
-
-        roughness: 0.15,
-
-        metalness: 0.1
-
+        color: 0xcbd2dc,
+        map: plasticGrainTex,
+        roughness: 0.72,
+        metalness: 0.02,
+        transparent: false,
+        opacity: 1.0
     });
 
-
-
     const matLiquid = new THREE.MeshStandardMaterial({
-
         color: 0x00bfff,
-
         transparent: true,
-
-        opacity: 0.85,
-
+        opacity: 0.0,
         roughness: 0.22
-
     });
 
 
@@ -21282,161 +21241,112 @@ function createRealisticAgrasT100() {
 
 
     // -------------------------------------------------------------------------
-
-    // PALETA DE MATERIALES PBR FIEL A LAS 5 FOTOS DE REFERENCIA DJI AGRAS T100
-
+    // PALETA DE MATERIALES PBR MATE INDUSTRIAL DJI AGRAS T100 (TANQUE OPACO + FIBRA 3K)
     // -------------------------------------------------------------------------
 
     const tankTex = createTankPolymerTexture();
+    const plasticGrainTex = (typeof createMattePlasticGrainTexture === 'function') ? createMattePlasticGrainTexture() : tankTex;
+    const carbonWeaveTex = (typeof createCarbonWeaveTexture === 'function') ? createCarbonWeaveTexture() : null;
 
+    // Tanque de 100 L en polietileno HDPE blanco-grisáceo mate y 100% opaco (sin translucidez)
     const matTankWhite = new THREE.MeshStandardMaterial({
-
-        color: 0xf2f5f9,
-
+        color: 0xe6ebf1,
         map: tankTex,
-
-        roughness: 0.34,
-
-        metalness: 0.03
-
+        bumpMap: tankTex,
+        bumpScale: 0.0052,
+        roughness: 0.78,
+        metalness: 0.01,
+        transparent: false,
+        opacity: 1.0
     });
 
-
-
-    // Gris claro frío satinado del carenado frontal, torre LiDAR y bastidor superior
-
+    // Plástico industrial gris mate-satinado del carenado frontal, torre LiDAR y bastidor superior
     const matCanopyGrey = new THREE.MeshStandardMaterial({
-
-        color: 0xb4bac4,
-
-        roughness: 0.35,
-
-        metalness: 0.14,
-
+        color: 0xaab1bc,
+        map: plasticGrainTex,
+        bumpMap: plasticGrainTex,
+        bumpScale: 0.0032,
+        roughness: 0.66,
+        metalness: 0.06,
         side: THREE.DoubleSide
-
     });
 
-
-
-    // Gris medio para bloques de batería, tapa del tanque y cajas ESC internas
-
+    // Polímero gris medio mate para bloques de batería, tapa del tanque y cajas ESC internas
     const matMidGrey = new THREE.MeshStandardMaterial({
-
-        color: 0x8c94a0,
-
-        roughness: 0.38,
-
-        metalness: 0.18
-
+        color: 0x828a96,
+        map: plasticGrainTex,
+        bumpMap: plasticGrainTex,
+        bumpScale: 0.0034,
+        roughness: 0.68,
+        metalness: 0.07
     });
 
-
-
-    // Gris pizarra oscuro para el núcleo aletado de la batería DB2160
-
+    // Gris pizarra oscuro mate para el núcleo aletado de la batería DB2160
     const matBatterySlate = new THREE.MeshStandardMaterial({
-
-        color: 0x484f5c,
-
-        roughness: 0.42,
-
-        metalness: 0.20
-
+        color: 0x464d59,
+        bumpMap: plasticGrainTex,
+        bumpScale: 0.0032,
+        roughness: 0.68,
+        metalness: 0.09
     });
-
-
 
     const matBatteryDark = new THREE.MeshStandardMaterial({
-
-        color: 0x232730,
-
-        roughness: 0.45,
-
-        metalness: 0.22
-
-    });
-
-
-
-    // Negro mate/satinado estructural (patines, bisagras, cárter central de motor, cabezales de boquilla)
-
-    const matDarkFrame = new THREE.MeshStandardMaterial({
-
-        color: 0x16181d,
-
-        roughness: 0.42,
-
-        metalness: 0.22
-
-    });
-
-
-
-    // Fibra de carbono 3K para brazos principales y lanzas de pulverización
-
-    const matCarbonTube = new THREE.MeshStandardMaterial({
-
         color: 0x22262e,
-
-        roughness: 0.30,
-
-        metalness: 0.32
-
+        bumpMap: plasticGrainTex,
+        bumpScale: 0.0035,
+        roughness: 0.72,
+        metalness: 0.08
     });
 
+    // Polímero negro mate estructural (patines, bisagras, cárter central de motor, cabezales de boquilla)
+    const matDarkFrame = new THREE.MeshStandardMaterial({
+        color: 0x17191e,
+        bumpMap: plasticGrainTex,
+        bumpScale: 0.0034,
+        roughness: 0.70,
+        metalness: 0.08
+    });
 
+    // Fibra de carbono 3K tejida para brazos principales y lanzas de pulverización
+    const matCarbonTube = new THREE.MeshStandardMaterial({
+        color: 0x20242c,
+        map: carbonWeaveTex,
+        bumpMap: carbonWeaveTex,
+        bumpScale: 0.0035,
+        roughness: 0.50,
+        metalness: 0.16
+    });
 
-    // Gris metálico claro de los 8 motores coaxiales (155x16mm) y cajas ESC laterales
-
+    // Aluminio anodizado mate de los 8 motores coaxiales (155x16mm) y cajas ESC laterales
     const matMotorSilver = new THREE.MeshStandardMaterial({
-
-        color: 0xc8cfd8,
-
-        roughness: 0.28,
-
-        metalness: 0.32
-
+        color: 0xc2c9d2,
+        roughness: 0.36,
+        metalness: 0.42
     });
-
-
 
     const matAluminumFin = new THREE.MeshStandardMaterial({
-
-        color: 0xd8dfe8,
-
-        roughness: 0.24,
-
-        metalness: 0.38
-
+        color: 0xd4dce5,
+        roughness: 0.30,
+        metalness: 0.48
     });
 
-
-
-    // Palas de hélice de 62" en compuesto de carbono oscuro
-
+    // Palas de hélice de 62" en compuesto de fibra de carbono 3K con trama visible
     const matBladeCarbon = new THREE.MeshStandardMaterial({
-
-        color: 0x262930,
-
-        roughness: 0.33,
-
-        metalness: 0.18
-
+        color: 0x1e2229,
+        map: carbonWeaveTex,
+        bumpMap: carbonWeaveTex,
+        bumpScale: 0.0032,
+        roughness: 0.54,
+        metalness: 0.12
     });
 
-
-
-    // Naranja de seguridad DJI (puntas de hélice, seguro de tapa, anillos de boquillas, pestillos)
-
+    // Polímero naranja mate de seguridad DJI (puntas de hélice, seguro de tapa, anillos de boquillas, pestillos)
     const matSafetyOrange = new THREE.MeshStandardMaterial({
-
-        color: 0xff5a14,
-
-        roughness: 0.28,
-
-        metalness: 0.08
-
+        color: 0xf25613,
+        bumpMap: plasticGrainTex,
+        bumpScale: 0.0022,
+        roughness: 0.54,
+        metalness: 0.04
     });
 
 
@@ -22314,7 +22224,7 @@ function createRealisticAgrasT100() {
 
 
 
-    // Malla dinámica de líquido alojada íntegramente dentro del tanque blanco
+    // Malla dinámica de líquido oculta (el tanque HDPE del T100 es opaco mate, no translúcido)
 
     const liquidGeom = createRoundedBox(0.30, 0.15, 0.32, 0.02, 2);
 
@@ -22324,7 +22234,7 @@ function createRealisticAgrasT100() {
 
         transparent: true,
 
-        opacity: 0.40,
+        opacity: 0.0,
 
         roughness: 0.2
 
@@ -22333,6 +22243,7 @@ function createRealisticAgrasT100() {
     const liquidMesh = new THREE.Mesh(liquidGeom, liquidMat);
 
     liquidMesh.position.set(0, -0.15, -0.06);
+    liquidMesh.visible = false;
 
     tankGroup.add(liquidMesh);
 
@@ -23706,97 +23617,70 @@ function createRealisticAgrasT25P() {
 
 
     // =========================================================================
-
-    // MATERIALES EXACTOS DJI AGRAS T25P (CALIBRADOS SEGÚN FOTOS)
-
+    // MATERIALES PBR MATE INDUSTRIAL DJI AGRAS T25P (TANQUE OPACO + FIBRA 3K)
     // =========================================================================
 
     const sharedMats = getAgrasSharedMaterials();
-
     const tankTex = createTankPolymerTexture();
+    const plasticGrainTex = (typeof createMattePlasticGrainTexture === 'function') ? createMattePlasticGrainTexture() : tankTex;
+    const carbonWeaveTex = (typeof createCarbonWeaveTexture === 'function') ? createCarbonWeaveTexture() : null;
 
-
-
-    // Blanco polímero satinado de alta densidad para el tanque de 20 L
-
+    // Polietileno HDPE blanco-grisáceo mate y 100% opaco para el tanque de 20 L
     const matTankWhite = new THREE.MeshStandardMaterial({
-
-        color: 0xf6f8fb,
-
+        color: 0xe8edf3,
         map: tankTex,
-
-        roughness: 0.30,
-
-        metalness: 0.02
-
+        bumpMap: tankTex,
+        bumpScale: 0.0052,
+        roughness: 0.78,
+        metalness: 0.01,
+        transparent: false,
+        opacity: 1.0
     });
 
-
-
-    // Gris pizarra satinado oficial de la torre de radar, cúpula y radar inferior (#727a87)
-
+    // Polímero gris pizarra mate oficial de la torre de radar, cúpula y radar inferior
     const matCanopyGrey = new THREE.MeshStandardMaterial({
-
-        color: 0x727a87,
-
-        roughness: 0.38,
-
-        metalness: 0.16,
-
+        color: 0x6f7784,
+        map: plasticGrainTex,
+        bumpMap: plasticGrainTex,
+        bumpScale: 0.0032,
+        roughness: 0.68,
+        metalness: 0.07,
         side: THREE.DoubleSide
-
     });
-
-
 
     const matBatterySlate = new THREE.MeshStandardMaterial({
-
-        color: 0x58606d,
-
-        roughness: 0.42,
-
-        metalness: 0.18
-
+        color: 0x525a67,
+        bumpMap: plasticGrainTex,
+        bumpScale: 0.0032,
+        roughness: 0.68,
+        metalness: 0.09
     });
-
-
 
     const matBatteryDark = new THREE.MeshStandardMaterial({
-
-        color: 0x2e333b,
-
-        roughness: 0.46,
-
-        metalness: 0.20
-
+        color: 0x2a2f37,
+        bumpMap: plasticGrainTex,
+        bumpScale: 0.0035,
+        roughness: 0.72,
+        metalness: 0.08
     });
 
-
-
-    // Negro carbono industrial mate/satinado del chasis, brazos y montantes
-
+    // Polímero negro mate estructural del chasis y montantes
     const matDarkFrame = new THREE.MeshStandardMaterial({
-
-        color: 0x181b20,
-
-        roughness: 0.45,
-
-        metalness: 0.22
-
+        color: 0x171a20,
+        bumpMap: plasticGrainTex,
+        bumpScale: 0.0034,
+        roughness: 0.70,
+        metalness: 0.08
     });
 
-
-
-    // Tubos de fibra de carbono 3K
-
+    // Tubos de fibra de carbono 3K tejida
     const matCarbonTube = new THREE.MeshStandardMaterial({
-
-        color: 0x22262d,
-
-        roughness: 0.32,
-
-        metalness: 0.30
-
+        color: 0x20242c,
+        map: carbonWeaveTex,
+        bumpMap: carbonWeaveTex,
+        bumpScale: 0.0035,
+        roughness: 0.50,
+        metalness: 0.16
     });
 
 
@@ -25926,76 +25810,96 @@ function createRealisticAgrasT55() {
     bodyRoot.add(droneBellyFillLight);
 
     const tankTex = createTankPolymerTexture();
+    const plasticGrainTex = (typeof createMattePlasticGrainTexture === 'function') ? createMattePlasticGrainTexture() : tankTex;
     const warningTex = createAgrasWarningDecalTexture();
-    const carbonTex = createAgrasCarbonWeaveTexture();
+    const carbonTex = (typeof createCarbonWeaveTexture === 'function') ? createCarbonWeaveTexture() : createAgrasCarbonWeaveTexture();
 
     // =========================================================================
-    // PALETA DE MATERIALES CALIBRADA CON LAS 5 IMÁGENES DE ESTUDIO DEL T55
+    // PALETA DE MATERIALES PBR MATE INDUSTRIAL DJI AGRAS T55 (TANQUE OPACO + FIBRA 3K)
     // =========================================================================
-    // 1. Tanque de 50L: Polietileno HDPE blanco perla luminoso y limpio (Fotos 2, 3, 4 y 5)
+    // 1. Tanque de 50L: Polietileno HDPE blanco-grisáceo mate y 100% opaco (sin translucidez)
     const matTankWhite = new THREE.MeshStandardMaterial({
-        color: 0xe6eaf0,
+        color: 0xe3e8ef,
         map: tankTex,
-        roughness: 0.42,
-        metalness: 0.02
+        bumpMap: tankTex,
+        bumpScale: 0.0052,
+        roughness: 0.78,
+        metalness: 0.01,
+        transparent: false,
+        opacity: 1.0
     });
 
-    // 2. Carenado frontal facetado y postes RTK laterales: Gris claro mate frío (Fotos 1, 3, 4 y 5)
+    // 2. Carenado frontal facetado y postes RTK laterales: Polímero gris claro mate granulado
     const matNoseFaceted = new THREE.MeshStandardMaterial({
-        color: 0xc8cfd8,
-        roughness: 0.46,
-        metalness: 0.06,
+        color: 0xc2c9d3,
+        map: plasticGrainTex,
+        bumpMap: plasticGrainTex,
+        bumpScale: 0.0032,
+        roughness: 0.68,
+        metalness: 0.05,
         flatShading: true
     });
 
     const matNoseSmooth = new THREE.MeshStandardMaterial({
-        color: 0xc8cfd8,
-        roughness: 0.44,
-        metalness: 0.06
+        color: 0xc2c9d3,
+        map: plasticGrainTex,
+        bumpMap: plasticGrainTex,
+        bumpScale: 0.0032,
+        roughness: 0.66,
+        metalness: 0.05
     });
 
-    // 3. Torre de radar superior, tapa circular del tanque y sensores inferiores: Gris pizarra medio (Fotos 1-5)
+    // 3. Torre de radar superior, tapa circular del tanque y sensores inferiores: Polímero gris pizarra mate
     const matTowerGrey = new THREE.MeshStandardMaterial({
-        color: 0x87909d,
-        roughness: 0.42,
-        metalness: 0.14
+        color: 0x828b98,
+        map: plasticGrainTex,
+        bumpMap: plasticGrainTex,
+        bumpScale: 0.0034,
+        roughness: 0.68,
+        metalness: 0.07
     });
 
-    // 4. Bastidor estructural, patines, bisagras, carcasas de motor y bomba: Negro grafito anodizado
+    // 4. Bastidor estructural, patines, bisagras, carcasas de motor y bomba: Polímero/grafito mate
     const matFrameDark = new THREE.MeshStandardMaterial({
-        color: 0x181a20,
-        roughness: 0.38,
-        metalness: 0.38
+        color: 0x171a20,
+        bumpMap: plasticGrainTex,
+        bumpScale: 0.0034,
+        roughness: 0.68,
+        metalness: 0.12
     });
 
-    // 5. Tubos de fibra de carbono de los 4 brazos
+    // 5. Tubos de fibra de carbono 3K tejida de los 4 brazos
     const matCarbonArm = new THREE.MeshStandardMaterial({
-        color: 0x1c1f26,
+        color: 0x1e222a,
         map: carbonTex,
-        roughness: 0.44,
-        metalness: 0.26
+        bumpMap: carbonTex,
+        bumpScale: 0.0035,
+        roughness: 0.50,
+        metalness: 0.16
     });
 
-    // 6. Cubiertas superiores plateadas de los ESC y anillos centrífugos de los motores (Fotos 1, 2, 3 y 4)
+    // 6. Cubiertas superiores de aluminio anodizado mate de los ESC y motores
     const matMotorSilver = new THREE.MeshStandardMaterial({
         color: 0xbec6d1,
-        roughness: 0.30,
-        metalness: 0.46
+        roughness: 0.36,
+        metalness: 0.42
     });
 
-    // 7. Acento naranja DJI (pestaña en forma de gota de la tapa, anillos de atomizadores y puntas de hélice)
+    // 7. Polímero naranja mate DJI (pestaña de la tapa, anillos de atomizadores y puntas de hélice)
     const matOrangeAccent = new THREE.MeshStandardMaterial({
-        color: 0xf05a00,
-        roughness: 0.32,
-        metalness: 0.05
+        color: 0xf05810,
+        bumpMap: plasticGrainTex,
+        bumpScale: 0.0022,
+        roughness: 0.54,
+        metalness: 0.04
     });
 
     // 8. Calcomanías amarillas triangulares de advertencia en bisagras y ESCs
     const matWarningYellow = new THREE.MeshStandardMaterial({
         color: 0xf59e0b,
         map: warningTex,
-        roughness: 0.30,
-        metalness: 0.04
+        roughness: 0.45,
+        metalness: 0.03
     });
 
     const matLensDark = new THREE.MeshStandardMaterial({
@@ -26004,13 +25908,15 @@ function createRealisticAgrasT55() {
         metalness: 0.95
     });
 
-    // 9. Mangueras translúcidas / grises claras de suministro a los atomizadores (Fotos 1, 2 y 3)
+    // 9. Mangueras de polímero gris mate (opacas, sin translucidez plástica)
     const matTranslucentHose = new THREE.MeshStandardMaterial({
-        color: 0xcfd6df,
-        roughness: 0.32,
-        metalness: 0.05,
-        transparent: true,
-        opacity: 0.88
+        color: 0xcbd2dc,
+        bumpMap: plasticGrainTex,
+        bumpScale: 0.0020,
+        roughness: 0.68,
+        metalness: 0.03,
+        transparent: false,
+        opacity: 1.0
     });
 
     const matWhiteHose = new THREE.MeshStandardMaterial({
@@ -26497,17 +26403,18 @@ function createRealisticAgrasT55() {
         tankGroup.add(sidePipe);
     });
 
-    // Malla de líquido dinámico interior (50 L)
+    // Malla de líquido oculta (tanque HDPE 100% opaco, sin translucidez)
     const liquidGeo = createRoundedBox(0.38, 0.25, 0.39, 0.026, 4);
     const matLiquid = new THREE.MeshStandardMaterial({
         color: 0x00b4d8,
         roughness: 0.15,
         metalness: 0.1,
         transparent: true,
-        opacity: 0.72
+        opacity: 0.0
     });
     const liquidMesh = new THREE.Mesh(liquidGeo, matLiquid);
     liquidMesh.position.set(0, 0.02, 0);
+    liquidMesh.visible = false;
     tankGroup.add(liquidMesh);
 
     // =========================================================================
@@ -27740,6 +27647,7 @@ class AgriDrone3 {
         // 3. Malla dinámica de líquido y puntos de origen de boquillas y downwash
 
         this.liquidMesh = mesh.userData.liquidMesh;
+        if (this.liquidMesh) this.liquidMesh.visible = false;
 
         this.waterMesh = mesh.userData.liquidMesh;
 
@@ -41844,56 +41752,50 @@ shader.fragmentShader = shader.fragmentShader.replace(
 
 
 
-        // 1. Texturas combinadas de corteza de tronco y ramas
+        // 1. Texturas combinadas de corteza de tronco y ramas con relieve PBR (bumpMap)
 
-        const barkTex1 = this.createBarkTexture('#18120c', '#0c0805', '#241a12'); // Conífera leñosa muy oscura
+        const barkTex1 = this.createBarkTexture('#2b2016', '#140e09', '#3f3022'); // Corteza de pino/ciprés fisurada
 
-        const barkTex2 = this.createBarkTexture('#221b15', '#120e0a', '#2d241c'); // Madera perimetral rugosa oscura
+        const barkTex2 = this.createBarkTexture('#34281d', '#1a130d', '#4a392a'); // Ramas leñosas rugosas
 
 
 
         const barkMat1 = new THREE.MeshStandardMaterial({
 
             map: barkTex1,
-
-            roughness: 0.90,
-
-            metalness: 0.05
+            bumpMap: barkTex1,
+            bumpScale: 0.055,
+            roughness: 0.92,
+            metalness: 0.02
 
         });
 
         const barkMat2 = new THREE.MeshStandardMaterial({
 
             map: barkTex2,
-
-            roughness: 0.86,
-
-            metalness: 0.05
+            bumpMap: barkTex2,
+            bumpScale: 0.045,
+            roughness: 0.90,
+            metalness: 0.02
 
         });
 
 
 
-                // 2. Texturas combinadas de follaje perimetral oscurecido (conÃ­fera / ciprÃ©s bosque profundo)
-
-        // Calibradas significativamente mÃ¡s oscuras que el huerto de naranjos (#254d20) para evitar que se mezclen cromÃ¡ticamente:
-
-        const folTexA = this.createFoliageTexture('#0b1a0e', ['#122816', '#17331d', '#08130a', '#1a3a21', '#0e2012']); // CiprÃ©s / ConÃ­fera densa muy oscura
-
-        const folTexB = this.createFoliageTexture('#0f2214', ['#152e1b', '#1b3b23', '#0a170d', '#132817', '#204428']); // Pino perimetral verde bosque profundo
-
-        const folTexC = this.createFoliageTexture('#0d1d17', ['#132920', '#18352a', '#081410', '#10231b', '#1d3e31']); // Enebro / Verde sombra perimetral con matiz conÃ­fero fresco
+        // 2. Texturas PBR de follaje perimetral con racimos de hojas, sombras profundas y luces solares
+        const folTexA = this.createFoliageTexture('#142c17', ['#1d3d21', '#264e2b', '#0d1f10', '#316137', '#17331b']);
+        const folTexB = this.createFoliageTexture('#18331c', ['#224527', '#2c5832', '#102413', '#386b3e', '#1c3b20']);
+        const folTexC = this.createFoliageTexture('#162f22', ['#1f402f', '#28523c', '#0e2017', '#33644a', '#1a3828']);
 
 
 
         const folMatA = new THREE.MeshStandardMaterial({
 
             map: folTexA,
-
-            roughness: 0.88,
-
-            metalness: 0.02,
-
+            bumpMap: folTexA,
+            bumpScale: 0.075,
+            roughness: 0.86,
+            metalness: 0.01,
             shadowSide: THREE.DoubleSide
 
         });
@@ -41901,11 +41803,10 @@ shader.fragmentShader = shader.fragmentShader.replace(
         const folMatB = new THREE.MeshStandardMaterial({
 
             map: folTexB,
-
-            roughness: 0.86,
-
-            metalness: 0.02,
-
+            bumpMap: folTexB,
+            bumpScale: 0.075,
+            roughness: 0.84,
+            metalness: 0.01,
             shadowSide: THREE.DoubleSide
 
         });
@@ -41913,11 +41814,10 @@ shader.fragmentShader = shader.fragmentShader.replace(
         const folMatC = new THREE.MeshStandardMaterial({
 
             map: folTexC,
-
-            roughness: 0.88,
-
-            metalness: 0.02,
-
+            bumpMap: folTexC,
+            bumpScale: 0.075,
+            roughness: 0.86,
+            metalness: 0.01,
             shadowSide: THREE.DoubleSide
 
         });
@@ -42288,9 +42188,21 @@ shader.fragmentShader = shader.fragmentShader.replace(
 
 
 
-        // Follajes
-
-        const folGeo = new THREE.SphereGeometry(1.0, 9, 7);
+        // Follajes con geometría orgánica lobulada (elimina apariencia de esferas lisas artificiales)
+        const folGeo = new THREE.SphereGeometry(1.0, 16, 12);
+        const fPos = folGeo.attributes.position;
+        for (let vi = 0; vi < fPos.count; vi++) {
+            const vx = fPos.getX(vi);
+            const vy = fPos.getY(vi);
+            const vz = fPos.getZ(vi);
+            const lobe1 = Math.sin(vx * 3.8 + vy * 2.7) * Math.cos(vz * 3.8 - vy * 2.1);
+            const lobe2 = Math.sin(vz * 6.2 - vx * 5.1) * Math.cos(vy * 5.4);
+            const disp = 1.0 + 0.14 * lobe1 + 0.07 * lobe2;
+            // Base ligeramente achatada como racimo foliar real
+            const yMod = (vy < -0.25) ? (0.86 + 0.14 * Math.max(0, 1 + vy)) : 1.02;
+            fPos.setXYZ(vi, vx * disp, vy * disp * yMod, vz * disp);
+        }
+        folGeo.computeVertexNormals();
 
         const folInstMeshA = new THREE.InstancedMesh(folGeo, folMatA, Math.max(1, totalFoliageA));
 
@@ -42573,121 +42485,88 @@ shader.fragmentShader = shader.fragmentShader.replace(
      */
 
     createBarkTexture(baseColor, darkColor, lightColor) {
-
         const canvas = document.createElement('canvas');
-
-        canvas.width = 128;
-
-        canvas.height = 256;
-
+        canvas.width = 256;
+        canvas.height = 512;
         const ctx = canvas.getContext('2d');
-
         ctx.fillStyle = baseColor;
+        ctx.fillRect(0, 0, 256, 512);
 
-        ctx.fillRect(0, 0, 128, 256);
-
-
-
-        // Estrías y hendiduras verticales
-
-        for (let i = 0; i < 70; i++) {
-
-            const x = Math.random() * 128;
-
-            const w = 1 + Math.random() * 3.5;
-
-            ctx.fillStyle = Math.random() > 0.4 ? darkColor : lightColor;
-
-            ctx.fillRect(x, 0, w, 256);
-
+        // Fisuras y placas verticales profundas de corteza natural
+        for (let i = 0; i < 160; i++) {
+            const x = Math.random() * 256;
+            const y = Math.random() * 512;
+            const w = 1.5 + Math.random() * 4.5;
+            const h = 40 + Math.random() * 180;
+            ctx.fillStyle = Math.random() > 0.42 ? darkColor : lightColor;
+            ctx.fillRect(x, y, w, h);
         }
 
-
-
-        // Variaciones orgánicas de corteza
-
-        for (let i = 0; i < 500; i++) {
-
-            const rx = Math.random() * 128;
-
-            const ry = Math.random() * 256;
-
-            ctx.fillStyle = Math.random() > 0.5 ? 'rgba(0, 0, 0, 0.35)' : 'rgba(255, 255, 255, 0.12)';
-
-            ctx.fillRect(rx, ry, 2, 8);
-
+        // Grietas oscuras entrelazadas y nudos de madera
+        for (let i = 0; i < 1400; i++) {
+            const rx = Math.random() * 256;
+            const ry = Math.random() * 512;
+            ctx.fillStyle = Math.random() > 0.45 ? 'rgba(0, 0, 0, 0.42)' : 'rgba(255, 248, 235, 0.14)';
+            ctx.fillRect(rx, ry, 1.8 + Math.random() * 2.5, 6 + Math.random() * 14);
         }
-
-
 
         const tex = new THREE.CanvasTexture(canvas);
-
         tex.wrapS = THREE.RepeatWrapping;
-
         tex.wrapT = THREE.RepeatWrapping;
-
-        tex.repeat.set(1, 2);
-
+        tex.repeat.set(2, 3);
         return tex;
-
     }
 
-
-
     /**
-
-     * Genera una textura procedural de follaje frondoso con motas y racimos de hojas
-
+     * Genera una textura procedural PBR de follaje frondoso con racimos de hojas, oclusión interna y brillos solares
      */
-
     createFoliageTexture(baseColor, tones) {
-
         const canvas = document.createElement('canvas');
-
-        canvas.width = 256;
-
-        canvas.height = 256;
-
+        canvas.width = 512;
+        canvas.height = 512;
         const ctx = canvas.getContext('2d');
-
         ctx.fillStyle = baseColor;
+        ctx.fillRect(0, 0, 512, 512);
 
-        ctx.fillRect(0, 0, 256, 256);
-
-
-
-        // Motas y racimos de hojas
-
-        for (let i = 0; i < 3000; i++) {
-
-            const rx = Math.random() * 256;
-
-            const ry = Math.random() * 256;
-
-            const radius = 2 + Math.random() * 4.5;
-
-            ctx.fillStyle = tones[Math.floor(Math.random() * tones.length)];
-
+        // 1. Bolsas de sombra interna entre ramas (oclusión ambiental del dosel)
+        for (let i = 0; i < 420; i++) {
+            const rx = Math.random() * 512;
+            const ry = Math.random() * 512;
+            const r = 8 + Math.random() * 18;
+            ctx.fillStyle = 'rgba(5, 12, 7, 0.36)';
             ctx.beginPath();
-
-            ctx.arc(rx, ry, radius, 0, Math.PI * 2);
-
+            ctx.arc(rx, ry, r, 0, Math.PI * 2);
             ctx.fill();
-
         }
 
+        // 2. Racimos densos de hojas/acículas con orientación natural variada
+        for (let i = 0; i < 7500; i++) {
+            const rx = Math.random() * 512;
+            const ry = Math.random() * 512;
+            const rxRad = 1.6 + Math.random() * 4.2;
+            const ryRad = rxRad * (0.45 + Math.random() * 0.40);
+            const ang = Math.random() * Math.PI;
+            ctx.fillStyle = tones[Math.floor(Math.random() * tones.length)];
+            ctx.beginPath();
+            ctx.ellipse(rx, ry, rxRad, ryRad, ang, 0, Math.PI * 2);
+            ctx.fill();
+        }
 
+        // 3. Brotes superiores iluminados por el sol para dar relieve tridimensional
+        for (let i = 0; i < 1600; i++) {
+            const rx = Math.random() * 512;
+            const ry = Math.random() * 512;
+            ctx.fillStyle = 'rgba(130, 195, 110, 0.16)';
+            ctx.beginPath();
+            ctx.arc(rx, ry, 1.2 + Math.random() * 2.2, 0, Math.PI * 2);
+            ctx.fill();
+        }
 
         const tex = new THREE.CanvasTexture(canvas);
-
         tex.wrapS = THREE.RepeatWrapping;
-
         tex.wrapT = THREE.RepeatWrapping;
-
-        tex.repeat.set(2, 2);
-
+        tex.repeat.set(3, 3);
         return tex;
-
     }
 
 
