@@ -18410,8 +18410,8 @@ function getT55CinematicPropBlurTexture(spinDir = 1) {
 
             // Sutil velo circular de aire barrido
             let alpha = 0.09 * Math.sin(Math.min(1.0, r) * Math.PI) * radEnv;
-            let highlight = 0.0;
             let orangeMix = 0.0;
+            const tipBand = (r > 0.855 && r < 0.995) ? Math.sin(((r - 0.855) / 0.14) * Math.PI) : 0.0;
 
             for (let li = 0; li < lobes.length; li++) {
                 const lb = lobes[li];
@@ -18430,28 +18430,23 @@ function getT55CinematicPropBlurTexture(spinDir = 1) {
                 } else {
                     alpha = Math.min(0.95, alpha + contrib * 0.45);
                 }
-                if (li < 2) {
-                    // Reflejo metálico de fibra de carbono en el lomo de la pala para contraste sobre suelo oscuro
-                    const ridge = Math.exp(-(d * d) / (2.0 * 0.045 * 0.045)) * radEnv;
-                    highlight = Math.max(highlight, ridge * (r > 0.15 && r < 0.84 ? 1.0 : 0.3));
-                }
-                if (r > 0.865 && r < 0.995) {
-                    const bandT = Math.sin(((r - 0.865) / 0.13) * Math.PI);
-                    orangeMix = Math.max(orangeMix, g * lb.tipGlow * bandT);
+                if (tipBand > 0.0) {
+                    orangeMix = Math.max(orangeMix, g * lb.tipGlow * tipBand);
                 }
             }
 
-            // Color base grafito carbono oscuro + brillo sutil de lomo + puntas naranjas suaves
-            let cr = 14 + highlight * 56;
-            let cg = 17 + highlight * 64;
-            let cb = 22 + highlight * 76;
+            // Carbono mate uniforme sin franja gris + círculo naranja continuo en puntas de hélice
+            let cr = 12;
+            let cg = 14;
+            let cb = 18;
 
-            if (orangeMix > 0.02) {
-                const om = Math.min(1.0, orangeMix * 0.95);
-                cr = cr * (1 - om) + 245 * om;
-                cg = cg * (1 - om) + 128 * om;
-                cb = cb * (1 - om) + 20 * om;
-                alpha = Math.max(alpha, om * 0.72 * radEnv);
+            const ringOrange = tipBand * 0.62;
+            const om = Math.min(1.0, Math.max(ringOrange, orangeMix * 0.95));
+            if (om > 0.02) {
+                cr = cr * (1 - om) + 255 * om;
+                cg = cg * (1 - om) + 142 * om;
+                cb = cb * (1 - om) + 14 * om;
+                alpha = Math.max(alpha, tipBand * 0.48 * radEnv, om * 0.78 * radEnv);
             }
 
             data[idx4]     = Math.min(255, Math.round(cr));
@@ -18489,9 +18484,9 @@ function getT55SideBladeBlurTexture() {
             const isTip = nx > 0.87 && nx < 0.985;
             const tipOm = isTip ? Math.sin(((nx - 0.87) / 0.115) * Math.PI) : 0.0;
             const idx4 = (y * w + x) * 4;
-            const cr = 18 * (1 - tipOm) + 242 * tipOm + (1 - Math.abs(ny)) * 34;
-            const cg = 22 * (1 - tipOm) + 126 * tipOm + (1 - Math.abs(ny)) * 38;
-            const cb = 28 * (1 - tipOm) + 22  * tipOm + (1 - Math.abs(ny)) * 44;
+            const cr = 14 * (1 - tipOm) + 252 * tipOm;
+            const cg = 16 * (1 - tipOm) + 138 * tipOm;
+            const cb = 20 * (1 - tipOm) + 16  * tipOm;
             const a = 0.72 * vFade * hFade;
             d[idx4]     = Math.min(255, Math.round(cr));
             d[idx4 + 1] = Math.min(255, Math.round(cg));
@@ -18572,30 +18567,11 @@ function attachT55CinematicBlurAssembly(rotorHub, bladeSpan = 0.785, spinDir = 1
     layer2.rotation.y = 0.58 * (spinDir >= 0 ? 1 : -1);
     layer2.renderOrder = 5;
 
-    // Dos listones verticales muy tenues cruzados a ±60° para silueta borrosa visible de perfil/frente horizontal
-    const sideMat = new THREE.MeshBasicMaterial({
-        map: getT55SideBladeBlurTexture(),
-        transparent: true,
-        opacity: 0.0,
-        depthWrite: false,
-        side: THREE.DoubleSide
-    });
-    const sideGeo = new THREE.PlaneGeometry(bladeSpan * 1.98, 0.068);
-    const sideFoil1 = new THREE.Mesh(sideGeo, sideMat);
-    sideFoil1.position.y = 0.022;
-    sideFoil1.renderOrder = 6;
-    const sideFoil2 = new THREE.Mesh(sideGeo, sideMat);
-    sideFoil2.position.y = 0.022;
-    sideFoil2.rotation.y = Math.PI / 3;
-    sideFoil2.renderOrder = 6;
-
     const group = new THREE.Group();
     group.name = 'T55_Cinematic_BlurDisc';
     group.visible = false;
     group.add(layer1);
     group.add(layer2);
-    group.add(sideFoil1);
-    group.add(sideFoil2);
     rotorHub.add(group);
 
     rotorHub.userData.isT55CinematicBlur = true;
@@ -18605,7 +18581,7 @@ function attachT55CinematicBlurAssembly(rotorHub, bladeSpan = 0.785, spinDir = 1
     rotorHub.userData.t55BlurLayer2 = layer2;
     rotorHub.userData.t55BlurMat1 = mat1;
     rotorHub.userData.t55BlurMat2 = mat2;
-    rotorHub.userData.t55BlurSideMat = sideMat;
+    rotorHub.userData.t55BlurSideMat = null;
     rotorHub.userData.t55BlurBlend = 0.0;
 }
 
