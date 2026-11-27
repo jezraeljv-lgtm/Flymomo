@@ -817,6 +817,20 @@ body.sidebar-collapsed .btn-sidebar-floating {
     box-shadow: 0 0 8px rgba(74, 107, 47, 0.45);
 }
 
+.crop-pill-btn[data-crop="banano_arroz"].active {
+    background: #0d9488;
+    color: #ffffff;
+    border-color: #0f766e;
+    box-shadow: 0 0 8px rgba(13, 148, 136, 0.45);
+}
+
+.crop-pill-btn[data-crop="pina_cana"].active {
+    background: #ca8a04;
+    color: #ffffff;
+    border-color: #a16207;
+    box-shadow: 0 0 8px rgba(202, 138, 4, 0.45);
+}
+
 .select-version {
     width: 100%;
     background: #ffffff;
@@ -9170,12 +9184,14 @@ html body.sidebar-collapsed #virtual-rc-screen .dji-white-action-btn {
             <!-- Conmutador de Mapa de Cultivo (Campo Estándar vs Nopal Tunero vs Huerto de Naranjos) -->
             <div id="crop-map-switch-banner" class="version-switch-banner crop-switch-banner" style="margin: 6px 14px 4px 14px; border-radius: 8px;">
                 <span id="crop-banner-tag" class="version-tag">Cultivo: Alfalfa 3D Forrajera (N) · Surcos Abiertos (S)</span>
-                <button id="btn-switch-crop-map" class="btn-version-switch btn-crop-switch" title="Cambiar mapa de cultivo (Ciclo: Alfalfa -> Nopal/Maíz -> Naranjo -> Potrero)">🌵 Cambiar mapa a Nopal / Maíz</button>
-                <div class="crop-pills-row" style="display: flex; gap: 4px; margin-top: 5px; width: 100%;">
+                <button id="btn-switch-crop-map" class="btn-version-switch btn-crop-switch" title="Cambiar mapa de cultivo (Ciclo: Alfalfa -> Nopal/Maíz -> Naranjo -> Potrero -> Banano y Arroz -> Piña y Caña)">🌵 Cambiar mapa a Nopal / Maíz</button>
+                <div class="crop-pills-row" style="display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; width: 100%;">
                     <button class="crop-pill-btn active" data-crop="default" title="Alfalfa 3D Forrajera (Medicago sativa • Cobertura 3D optimizada)">🌱 Alfalfa</button>
                     <button class="crop-pill-btn" data-crop="nopal" title="Nopal Tunero Norte (2m) • Maíz Sur (2m, hileras 2.5m)">🌵 Nopal/Maíz</button>
                     <button class="crop-pill-btn" data-crop="naranjo" title="Huerto de Naranjos (Citrus sinensis • 4m • Marco 7x7)">🍊 Naranjo</button>
                     <button class="crop-pill-btn" data-crop="potrero" title="Potrero Ganadero (Loma 5m Norte con 20 árboles • Plano Sur con 30 árboles)">🐄 Potrero</button>
+                    <button class="crop-pill-btn" data-crop="banano_arroz" title="Arroz Verde en Melgas Acuáticas Curveadas (0.8m · Terrazas hasta 2.5m) • Plantación de Banano (4.0m)">🍌 Banano y Arroz</button>
+                    <button class="crop-pill-btn" data-crop="pina_cana" title="Piña en Camas Trapezoidales (3 bloques 28m + 4 caminos 4m · 0.9m) • Caña de Azúcar Flexible (3.0m tallo / 4.0m hojas)">🍍 Piña y Caña</button>
                 </div>
             </div>
 
@@ -15779,17 +15795,25 @@ class MissionPlanner {
 
                         (this.app && this.app.activeCropMap === 'nopal');
 
-        const isDefault = !isNaranjo && !isNopal && !isPotrero;
+        const isBananoArroz = (this.app && this.app.terrain && this.app.terrain.cropType === 'banano_arroz') ||
+
+                              (this.app && this.app.activeCropMap === 'banano_arroz');
+
+        const isPinaCana = (this.app && this.app.terrain && this.app.terrain.cropType === 'pina_cana') ||
+
+                           (this.app && this.app.activeCropMap === 'pina_cana');
+
+        const isDefault = !isNaranjo && !isNopal && !isPotrero && !isBananoArroz && !isPinaCana;
 
         const isTerrainFollow = !!(this.drone && this.drone.terrainFollowingEnabled);
 
 
 
-        // Función para calcular la cota exacta sobre la copa del árbol / loma en Huerto de Naranjos o Potrero
+        // Función para calcular la cota exacta sobre la copa del árbol / loma / cultivo 3D
 
         const getTerrainCanopyY = (x, z) => {
 
-            if (isPotrero && this.app && this.app.terrain && typeof this.app.terrain.getSurfaceElevationBelow === 'function') {
+            if ((isPotrero || isBananoArroz || isPinaCana) && this.app && this.app.terrain && typeof this.app.terrain.getSurfaceElevationBelow === 'function') {
 
                 const surf = this.app.terrain.getSurfaceElevationBelow(x, z);
 
@@ -15826,6 +15850,14 @@ class MissionPlanner {
         if (isPotrero) {
 
             plotCanopyY = (this.selectedPlot === 'sur') ? 9.00 : 12.00;
+
+        } else if (isPinaCana) {
+
+            plotCanopyY = (this.selectedPlot === 'sur') ? 4.00 : 0.90;
+
+        } else if (isBananoArroz) {
+
+            plotCanopyY = (this.selectedPlot === 'sur') ? 4.00 : 2.30;
 
         } else if (isNaranjo) {
 
@@ -15956,9 +15988,9 @@ class MissionPlanner {
 
             // Altitud en inicio y fin de hilera
 
-            const startY = ((isNaranjo || isPotrero) && isTerrainFollow) ? getTerrainCanopyY(startX, zRow) : operatingAlt;
+            const startY = ((isNaranjo || isPotrero || isBananoArroz || isPinaCana) && isTerrainFollow) ? getTerrainCanopyY(startX, zRow) : operatingAlt;
 
-            const endY   = ((isNaranjo || isPotrero) && isTerrainFollow) ? getTerrainCanopyY(endX, zRow) : operatingAlt;
+            const endY   = ((isNaranjo || isPotrero || isBananoArroz || isPinaCana) && isTerrainFollow) ? getTerrainCanopyY(endX, zRow) : operatingAlt;
 
 
 
@@ -16016,7 +16048,7 @@ class MissionPlanner {
 
             // Generar waypoints intermedios que siguen fielmente la curva de la canopia sobre el montículo de 5 metros
 
-            if ((isNaranjo || isPotrero) && isTerrainFollow) {
+            if ((isNaranjo || isPotrero || isBananoArroz || isPinaCana) && isTerrainFollow) {
 
                 const subSteps = 28; // Resolución continua a lo largo de los 100 m
 
@@ -17149,13 +17181,16 @@ class MissionPlanner {
 
         setText('mp-disp-spacing', `${this.swathSpacing.toFixed(1)} m`);
 
-        const isDefault = !((this.app && this.app.terrain && this.app.terrain.cropType === 'naranjo') || 
-
-                            (this.app && this.app.activeCropMap === 'naranjo') || 
-
+        const isDefault = !((this.app && this.app.terrain && this.app.terrain.cropType === 'naranjo') ||
+                            (this.app && this.app.activeCropMap === 'naranjo') ||
                             (this.app && this.app.terrain && this.app.terrain.cropType === 'nopal') ||
-
-                            (this.app && this.app.activeCropMap === 'nopal'));
+                            (this.app && this.app.activeCropMap === 'nopal') ||
+                            (this.app && this.app.terrain && this.app.terrain.cropType === 'potrero') ||
+                            (this.app && this.app.activeCropMap === 'potrero') ||
+                            (this.app && this.app.terrain && this.app.terrain.cropType === 'banano_arroz') ||
+                            (this.app && this.app.activeCropMap === 'banano_arroz') ||
+                            (this.app && this.app.terrain && this.app.terrain.cropType === 'pina_cana') ||
+                            (this.app && this.app.activeCropMap === 'pina_cana'));
 
         setText('mp-disp-height', isDefault ? `${this.relativeHeight.toFixed(1)} m sobre cultivo 2D` : `${this.relativeHeight.toFixed(1)} m sobre copa`);
 
@@ -18320,6 +18355,258 @@ function attachRotorBlurDisc(rotorHub, bladeSpan = 0.785) {
     blurDisc.visible = false;
     rotorHub.add(blurDisc);
     rotorHub.userData.blurDisc = blurDisc;
+}
+
+const _cachedT55CinematicBlurTextures = {};
+function getT55CinematicPropBlurTexture(spinDir = 1) {
+    const key = spinDir >= 0 ? 'cw' : 'ccw';
+    if (_cachedT55CinematicBlurTextures[key]) return _cachedT55CinematicBlurTextures[key];
+
+    const size = 512;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    const imgData = ctx.createImageData(size, size);
+    const data = imgData.data;
+    const cx = size * 0.5;
+    const cy = size * 0.5;
+    const maxR = size * 0.485;
+    const dir = spinDir >= 0 ? 1 : -1;
+
+    const wrapPi = (a) => {
+        let x = a % (Math.PI * 2);
+        if (x > Math.PI) x -= Math.PI * 2;
+        if (x < -Math.PI) x += Math.PI * 2;
+        return x;
+    };
+
+    // Lobos simétricos de 2 palas + estelas de obturador de cámara (como en vuelo real)
+    const lobes = [
+        { offset: 0.0,         strength: 0.94, sigmaLead: 0.085, sigmaTrail: 0.21, tipGlow: 1.0 },
+        { offset: Math.PI,     strength: 0.94, sigmaLead: 0.085, sigmaTrail: 0.21, tipGlow: 1.0 },
+        { offset: -dir * 0.55, strength: 0.44, sigmaLead: 0.080, sigmaTrail: 0.18, tipGlow: 0.35 },
+        { offset: Math.PI - dir * 0.55, strength: 0.44, sigmaLead: 0.080, sigmaTrail: 0.18, tipGlow: 0.35 },
+        { offset: -dir * 1.15, strength: 0.24, sigmaLead: 0.095, sigmaTrail: 0.20, tipGlow: 0.18 },
+        { offset: Math.PI - dir * 1.15, strength: 0.24, sigmaLead: 0.095, sigmaTrail: 0.20, tipGlow: 0.18 }
+    ];
+
+    for (let y = 0; y < size; y++) {
+        const dy = y - cy;
+        for (let x = 0; x < size; x++) {
+            const dx = x - cx;
+            const idx4 = (y * size + x) * 4;
+            const r = Math.hypot(dx, dy) / maxR;
+            if (r < 0.075 || r > 1.0) {
+                data[idx4 + 3] = 0;
+                continue;
+            }
+
+            const ang = Math.atan2(dy, dx);
+            // Envolvente radial: raíz suave, cuerda media sólida, punta difuminada sin borde duro
+            const rootFade = Math.min(1.0, (r - 0.075) / 0.11);
+            const tipFade = r > 0.91 ? Math.max(0.0, (1.0 - r) / 0.09) : 1.0;
+            const radEnv = rootFade * tipFade;
+
+            // Sutil velo circular de aire barrido
+            let alpha = 0.09 * Math.sin(Math.min(1.0, r) * Math.PI) * radEnv;
+            let highlight = 0.0;
+            let orangeMix = 0.0;
+
+            for (let li = 0; li < lobes.length; li++) {
+                const lb = lobes[li];
+                // Ángulo con ligero retraso por flexibilidad hacia la punta
+                const flexBias = -dir * Math.pow(r, 1.8) * 0.045;
+                const d = wrapPi(ang - (lb.offset + flexBias));
+                // Asimetría direccional: borde de ataque más nítido, estela trasera más larga y difusa
+                const isTrail = (d * dir) < 0;
+                const sigBase = isTrail ? lb.sigmaTrail : lb.sigmaLead;
+                // En radio interior el abanico angular es ligeramente más ancho y en la punta se afila suave
+                const sig = sigBase * (1.15 - 0.30 * r);
+                const g = Math.exp(-(d * d) / (2.0 * sig * sig));
+                const contrib = lb.strength * g * radEnv;
+                if (contrib > alpha) {
+                    alpha = Math.min(0.95, alpha + contrib * 0.85);
+                } else {
+                    alpha = Math.min(0.95, alpha + contrib * 0.45);
+                }
+                if (li < 2) {
+                    // Reflejo metálico de fibra de carbono en el lomo de la pala para contraste sobre suelo oscuro
+                    const ridge = Math.exp(-(d * d) / (2.0 * 0.045 * 0.045)) * radEnv;
+                    highlight = Math.max(highlight, ridge * (r > 0.15 && r < 0.84 ? 1.0 : 0.3));
+                }
+                if (r > 0.865 && r < 0.995) {
+                    const bandT = Math.sin(((r - 0.865) / 0.13) * Math.PI);
+                    orangeMix = Math.max(orangeMix, g * lb.tipGlow * bandT);
+                }
+            }
+
+            // Color base grafito carbono oscuro + brillo sutil de lomo + puntas naranjas suaves
+            let cr = 14 + highlight * 56;
+            let cg = 17 + highlight * 64;
+            let cb = 22 + highlight * 76;
+
+            if (orangeMix > 0.02) {
+                const om = Math.min(1.0, orangeMix * 0.95);
+                cr = cr * (1 - om) + 245 * om;
+                cg = cg * (1 - om) + 128 * om;
+                cb = cb * (1 - om) + 20 * om;
+                alpha = Math.max(alpha, om * 0.72 * radEnv);
+            }
+
+            data[idx4]     = Math.min(255, Math.round(cr));
+            data[idx4 + 1] = Math.min(255, Math.round(cg));
+            data[idx4 + 2] = Math.min(255, Math.round(cb));
+            data[idx4 + 3] = Math.min(255, Math.round(alpha * 255));
+        }
+    }
+
+    ctx.putImageData(imgData, 0, 0);
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.generateMipmaps = true;
+    tex.minFilter = THREE.LinearMipmapLinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    _cachedT55CinematicBlurTextures[key] = tex;
+    return tex;
+}
+
+let _cachedT55SideBladeBlurTex = null;
+function getT55SideBladeBlurTexture() {
+    if (_cachedT55SideBladeBlurTex) return _cachedT55SideBladeBlurTex;
+    const w = 256, h = 64;
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    const imgData = ctx.createImageData(w, h);
+    const d = imgData.data;
+    for (let y = 0; y < h; y++) {
+        const ny = (y / (h - 1)) * 2 - 1; // -1..+1 vertical
+        const vFade = Math.exp(-(ny * ny) * 3.8);
+        for (let x = 0; x < w; x++) {
+            const nx = Math.abs((x / (w - 1)) * 2 - 1); // 0 centro -> 1 punta
+            const hFade = nx < 0.06 ? (nx / 0.06) : (nx > 0.92 ? Math.max(0, (1.0 - nx) / 0.08) : 1.0);
+            const isTip = nx > 0.87 && nx < 0.985;
+            const tipOm = isTip ? Math.sin(((nx - 0.87) / 0.115) * Math.PI) : 0.0;
+            const idx4 = (y * w + x) * 4;
+            const cr = 18 * (1 - tipOm) + 242 * tipOm + (1 - Math.abs(ny)) * 34;
+            const cg = 22 * (1 - tipOm) + 126 * tipOm + (1 - Math.abs(ny)) * 38;
+            const cb = 28 * (1 - tipOm) + 22  * tipOm + (1 - Math.abs(ny)) * 44;
+            const a = 0.72 * vFade * hFade;
+            d[idx4]     = Math.min(255, Math.round(cr));
+            d[idx4 + 1] = Math.min(255, Math.round(cg));
+            d[idx4 + 2] = Math.min(255, Math.round(cb));
+            d[idx4 + 3] = Math.min(255, Math.round(a * 255));
+        }
+    }
+    ctx.putImageData(imgData, 0, 0);
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.generateMipmaps = true;
+    _cachedT55SideBladeBlurTex = tex;
+    return tex;
+}
+
+function createConedBlurDiskGeo(outerRadius, coneRise = 0.045, radialSegs = 6, angularSegs = 56) {
+    const innerR = Math.max(0.045, outerRadius * 0.07);
+    const pos = [];
+    const uv = [];
+    const idx = [];
+    for (let r = 0; r <= radialSegs; r++) {
+        const rt = r / radialSegs;
+        const rad = innerR + rt * (outerRadius - innerR);
+        const y = coneRise * Math.pow(rt, 1.35);
+        for (let a = 0; a <= angularSegs; a++) {
+            const ang = (a / angularSegs) * Math.PI * 2;
+            const x = Math.cos(ang) * rad;
+            const z = Math.sin(ang) * rad;
+            pos.push(x, y, z);
+            uv.push(0.5 + x / (outerRadius * 2.02), 0.5 + z / (outerRadius * 2.02));
+        }
+    }
+    const stride = angularSegs + 1;
+    for (let r = 0; r < radialSegs; r++) {
+        for (let a = 0; a < angularSegs; a++) {
+            const v0 = r * stride + a;
+            const v1 = v0 + 1;
+            const v2 = v0 + stride;
+            const v3 = v2 + 1;
+            idx.push(v0, v2, v1);
+            idx.push(v1, v2, v3);
+        }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    geo.setIndex(idx);
+    geo.computeVertexNormals();
+    return geo;
+}
+
+function attachT55CinematicBlurAssembly(rotorHub, bladeSpan = 0.785, spinDir = 1, bladeA = null, bladeB = null) {
+    if (!rotorHub) return;
+    const tex = getT55CinematicPropBlurTexture(spinDir);
+    const geo1 = createConedBlurDiskGeo(bladeSpan * 1.03, 0.044, 6, 56);
+    const geo2 = createConedBlurDiskGeo(bladeSpan * 1.01, 0.024, 5, 48);
+
+    const mat1 = new THREE.MeshBasicMaterial({
+        map: tex,
+        transparent: true,
+        opacity: 0.0,
+        depthWrite: false,
+        side: THREE.DoubleSide
+    });
+    const mat2 = new THREE.MeshBasicMaterial({
+        map: tex,
+        transparent: true,
+        opacity: 0.0,
+        depthWrite: false,
+        side: THREE.DoubleSide
+    });
+
+    const layer1 = new THREE.Mesh(geo1, mat1);
+    layer1.position.y = 0.008;
+    layer1.renderOrder = 4;
+
+    const layer2 = new THREE.Mesh(geo2, mat2);
+    layer2.position.y = 0.018;
+    layer2.rotation.y = 0.58 * (spinDir >= 0 ? 1 : -1);
+    layer2.renderOrder = 5;
+
+    // Dos listones verticales muy tenues cruzados a ±60° para silueta borrosa visible de perfil/frente horizontal
+    const sideMat = new THREE.MeshBasicMaterial({
+        map: getT55SideBladeBlurTexture(),
+        transparent: true,
+        opacity: 0.0,
+        depthWrite: false,
+        side: THREE.DoubleSide
+    });
+    const sideGeo = new THREE.PlaneGeometry(bladeSpan * 1.98, 0.068);
+    const sideFoil1 = new THREE.Mesh(sideGeo, sideMat);
+    sideFoil1.position.y = 0.022;
+    sideFoil1.renderOrder = 6;
+    const sideFoil2 = new THREE.Mesh(sideGeo, sideMat);
+    sideFoil2.position.y = 0.022;
+    sideFoil2.rotation.y = Math.PI / 3;
+    sideFoil2.renderOrder = 6;
+
+    const group = new THREE.Group();
+    group.name = 'T55_Cinematic_BlurDisc';
+    group.visible = false;
+    group.add(layer1);
+    group.add(layer2);
+    group.add(sideFoil1);
+    group.add(sideFoil2);
+    rotorHub.add(group);
+
+    rotorHub.userData.isT55CinematicBlur = true;
+    rotorHub.userData.solidBlades = [bladeA, bladeB].filter(Boolean);
+    rotorHub.userData.t55BlurGroup = group;
+    rotorHub.userData.t55BlurLayer1 = layer1;
+    rotorHub.userData.t55BlurLayer2 = layer2;
+    rotorHub.userData.t55BlurMat1 = mat1;
+    rotorHub.userData.t55BlurMat2 = mat2;
+    rotorHub.userData.t55BlurSideMat = sideMat;
+    rotorHub.userData.t55BlurBlend = 0.0;
 }
 
 /** Pala completa compartida (fibra de carbono + punta diagonal naranja + buje de raíz) para T70P y T100 */
@@ -23311,6 +23598,11 @@ function createRealisticAgrasT100() {
             rotorHub.name = `Rotor_${spec.id}_${cm.idSuffix}`;
 
             rotorHub.userData.spinDir = cm.dir;
+            rotorHub.userData.sx = spec.sx;
+            rotorHub.userData.sz = spec.sz;
+            rotorHub.userData.isLowerCoaxial = (cm.signY < 0);
+            rotorHub.userData.armId = spec.id;
+            rotorHub.userData.motorLabel = `${spec.id}_${cm.idSuffix}`;
 
             rotorHub.position.set(0, sY * 0.068, 0);
 
@@ -26767,7 +27059,7 @@ function createRealisticAgrasT55() {
         propGroup.add(bladeB);
 
         motorGroup.add(propGroup);
-        attachRotorBlurDisc(propGroup, bladeSpan);
+        attachT55CinematicBlurAssembly(propGroup, bladeSpan, cfg.dir, bladeA, bladeB);
         rotors.push(propGroup);
 
         rotorOrigins.push(new THREE.Vector3(mx, my + 0.535, mz));
@@ -27623,22 +27915,25 @@ class AgriDrone3 {
         // 2. Conectar rotores (8 para T100 octocóptero coaxial X8, 4 para T70P)
 
         if (mesh.userData.rotors) {
+            const baseThrustCoeff = (typeof CONFIG !== 'undefined' && CONFIG.drone && CONFIG.drone.thrustCoeff) ? CONFIG.drone.thrustCoeff : 5.1e-3;
+            const isX8 = (modelId === 'T100' && mesh.userData.rotors.length === 8);
 
-            this.rotors = mesh.userData.rotors.map((r, idx) => ({
-
-                id: idx,
-
-                prop: r,
-
-                dir: r.userData.spinDir || (idx % 2 === 0 ? -1 : 1),
-
-                rpm: this.isFlying ? 1600 : 0,
-
-                targetRPM: this.isFlying ? 1600 : 0,
-
-                disc: null
-
-            }));
+            this.rotors = mesh.userData.rotors.map((r, idx) => {
+                const isLower = !!(r.userData && r.userData.isLowerCoaxial);
+                return {
+                    id: idx,
+                    prop: r,
+                    dir: (r.userData && r.userData.spinDir) ? r.userData.spinDir : (idx % 2 === 0 ? -1 : 1),
+                    sx: (r.userData && r.userData.sx !== undefined) ? r.userData.sx : 0,
+                    sz: (r.userData && r.userData.sz !== undefined) ? r.userData.sz : 0,
+                    isLowerCoaxial: isLower,
+                    motorLabel: (r.userData && r.userData.motorLabel) ? r.userData.motorLabel : ('R' + (idx + 1)),
+                    thrustCoeff: isX8 ? (baseThrustCoeff * (isLower ? 0.46 : 0.54)) : baseThrustCoeff,
+                    rpm: this.isFlying ? 1600 : 0,
+                    targetRPM: this.isFlying ? 1600 : 0,
+                    disc: null
+                };
+            });
 
         }
 
@@ -30913,11 +31208,16 @@ class AgriDrone3 {
 
 
 
-        // Mezclador de RPM para los rotores: Diferencial físico auténtico de guiñada (Yaw)
-        // Al girar sobre su propio eje, un par diagonal acelera fuertemente y el par opuesto decelera,
-        // generando el par reactivo aerodinámico neto que rota el dron con notable diferencia visual
-        const pitchRpmOffset = (this.pitchAngle / MAX_TILT) * 110.0;
-        const rollRpmOffset  = (this.rollAngle  / MAX_TILT) * 110.0;
+        // Tasas angulares reales y errores de maniobra / frenado para asignación física de motores
+        const prevPitch = (this._prevPitchAngle !== undefined) ? this._prevPitchAngle : this.pitchAngle;
+        const prevRoll  = (this._prevRollAngle  !== undefined) ? this._prevRollAngle  : this.rollAngle;
+        const pitchRate = (this.pitchAngle - prevPitch) / safeDt;
+        const rollRate  = (this.rollAngle  - prevRoll)  / safeDt;
+        this._prevPitchAngle = this.pitchAngle;
+        this._prevRollAngle  = this.rollAngle;
+
+        const pitchErr = desiredPitchWithSlosh - this.pitchAngle;
+        const rollErr  = desiredRollWithSlosh  - this.rollAngle;
 
         const manualYaw = (manualInputs && Math.abs(manualInputs.yaw) > 0.01) ? manualInputs.yaw : 0;
         let autoYaw = 0;
@@ -30930,72 +31230,84 @@ class AgriDrone3 {
             }
         }
         const effectiveYaw = manualYaw !== 0 ? manualYaw : autoYaw;
-        const yawRpmOffset = effectiveYaw * 500.0;
-
-
+        const prevEffYaw = (this._prevEffectiveYaw !== undefined) ? this._prevEffectiveYaw : effectiveYaw;
+        const yawAccel = effectiveYaw - prevEffYaw;
+        this._prevEffectiveYaw = effectiveYaw;
 
         if (this.currentModel === 'T100' && this.rotors.length === 8) {
+            // Mezclador físico X8 (8 motores coaxiales): masa real del tanque, par de maniobra/frenado, viento y estela coaxial
+            const armBaseThrust = targetCollectiveThrust / 4.0;
+            const halfArmThrust = armBaseThrust * 0.5;
+            const maxAxisThrustDelta = halfArmThrust * 0.42;
 
-            // Octocóptero Coaxial X8: 4 brazos con 2 motores contrarrotativos cada uno
-
-            // Arm 0 (Del-Der, sx=+1, sz=+1): M1_Up CCW, M1_Dn CW
-
-            this.rotors[0].targetRPM = targetRPMCollective + pitchRpmOffset - rollRpmOffset + yawRpmOffset;
-
-            this.rotors[1].targetRPM = targetRPMCollective + pitchRpmOffset - rollRpmOffset - yawRpmOffset;
-
-            // Arm 1 (Del-Izq, sx=-1, sz=+1): M2_Up CW, M2_Dn CCW
-
-            this.rotors[2].targetRPM = targetRPMCollective + pitchRpmOffset + rollRpmOffset - yawRpmOffset;
-
-            this.rotors[3].targetRPM = targetRPMCollective + pitchRpmOffset + rollRpmOffset + yawRpmOffset;
-
-            // Arm 2 (Tras-Izq, sx=-1, sz=-1): M3_Up CCW, M3_Dn CW
-
-            this.rotors[4].targetRPM = targetRPMCollective - pitchRpmOffset + rollRpmOffset + yawRpmOffset;
-
-            this.rotors[5].targetRPM = targetRPMCollective - pitchRpmOffset + rollRpmOffset - yawRpmOffset;
-
-            // Arm 3 (Tras-Der, sx=+1, sz=-1): M4_Up CW, M4_Dn CCW
-
-            this.rotors[6].targetRPM = targetRPMCollective - pitchRpmOffset - rollRpmOffset - yawRpmOffset;
-
-            this.rotors[7].targetRPM = targetRPMCollective - pitchRpmOffset - rollRpmOffset + yawRpmOffset;
-
-        } else {
-
-            if (this.rotors[0]) this.rotors[0].targetRPM = targetRPMCollective + pitchRpmOffset - rollRpmOffset - yawRpmOffset;
-
-            if (this.rotors[1]) this.rotors[1].targetRPM = targetRPMCollective + pitchRpmOffset + rollRpmOffset + yawRpmOffset;
-
-            if (this.rotors[2]) this.rotors[2].targetRPM = targetRPMCollective - pitchRpmOffset + rollRpmOffset - yawRpmOffset;
-
-            if (this.rotors[3]) this.rotors[3].targetRPM = targetRPMCollective - pitchRpmOffset - rollRpmOffset + yawRpmOffset;
-
-        }
-
-
-
-        // Suavizado dinámico exponencial de velocidad del rotor para todos los rotores disponibles
-
-        const motorAlpha = 1.0 - Math.exp(-12.0 * safeDt);
-
-        for (let i = 0; i < this.rotors.length; i++) {
-
-            const target = Math.max(CONFIG.drone.idleRPM, Math.min(CONFIG.drone.maxRPM, this.rotors[i].targetRPM || baseHoverRPM));
-
-            this.rotors[i].rpm += (target - this.rotors[i].rpm) * motorAlpha;
-
-
-
-            // (La rotación visual de las hélices se gestiona con el modelo de desenfoque continuo anti-estroboscópico en app3.js)
-
-            if (this.rotors[i].disc) {
-
-                this.rotors[i].disc.rotation.y += 45.0 * safeDt;
-
+            let windFwdTrim = 0.0;
+            let windLatTrim = 0.0;
+            if (typeof CONFIG !== 'undefined' && CONFIG.wind) {
+                const wSpeed = (CONFIG.wind.randomizeSpeed && CONFIG.wind.currentSpeed !== undefined)
+                    ? CONFIG.wind.currentSpeed : (CONFIG.wind.speed || 0.0);
+                if (wSpeed > 0.2) {
+                    const wDirDeg = (CONFIG.wind.randomizeSpeed && CONFIG.wind.currentDirection !== undefined)
+                        ? CONFIG.wind.currentDirection : (CONFIG.wind.direction || 0.0);
+                    const wRad = wDirDeg * (Math.PI / 180.0);
+                    const wX = Math.sin(wRad) * wSpeed;
+                    const wZ = Math.cos(wRad) * wSpeed;
+                    const wFwd =  wX * curSinY + wZ * curCosY;
+                    const wLat =  wX * curCosY - wZ * curSinY;
+                    windFwdTrim = Math.max(-18.0, Math.min(18.0, wFwd * 2.4));
+                    windLatTrim = Math.max(-18.0, Math.min(18.0, wLat * 2.4));
+                }
             }
 
+            // +pitch = nariz abajo/adelante -> brazos traseros (sz=-1) aceleran; frenado (-pitch) -> brazos delanteros (sz=+1) aceleran
+            const rawPitchTorque = (pitchErr * 165.0 + (this.pitchAngle / MAX_TILT) * 32.0 - pitchRate * 14.0 - windFwdTrim) * massRatio;
+            // +roll = inclinación izquierda -> brazos derechos (sx=+1) aceleran
+            const rawRollTorque  = (rollErr  * 165.0 + (this.rollAngle  / MAX_TILT) * 32.0 - rollRate  * 14.0 + windLatTrim) * massRatio;
+            const pitchTorqueDemand = Math.max(-maxAxisThrustDelta, Math.min(maxAxisThrustDelta, rawPitchTorque));
+            const rollTorqueDemand  = Math.max(-maxAxisThrustDelta, Math.min(maxAxisThrustDelta, rawRollTorque));
+
+            // +yaw (CCW): rotores CW (dir=-1) aceleran y CCW (dir=+1) desaceleran manteniendo empuje neto constante
+            const yawRpmDelta = Math.max(-620.0, Math.min(620.0, effectiveYaw * 480.0 + yawAccel * 120.0));
+            const t100MaxRPM = 3800.0;
+
+            for (let i = 0; i < this.rotors.length; i++) {
+                const rotor = this.rotors[i];
+                const pitchDelta = -(rotor.sz || 0) * pitchTorqueDemand;
+                const rollDelta  =  (rotor.sx || 0) * rollTorqueDemand;
+                const rotorThrust = Math.max(8.0, halfArmThrust + pitchDelta + rollDelta);
+                const kThrust = rotor.thrustCoeff || (0.5 * CONFIG.drone.thrustCoeff);
+                const baseCoaxRPM = Math.sqrt(rotorThrust / kThrust) * (60.0 / (2.0 * Math.PI));
+                const rawTargetRPM = baseCoaxRPM - (rotor.dir || 1) * yawRpmDelta;
+                rotor.targetRPM = Math.max(CONFIG.drone.idleRPM, Math.min(t100MaxRPM, rawTargetRPM));
+
+                const rate = (rotor.targetRPM >= rotor.rpm) ? 14.0 : 9.5;
+                const alpha = 1.0 - Math.exp(-rate * safeDt);
+                rotor.rpm += (rotor.targetRPM - rotor.rpm) * alpha;
+
+                if (rotor.disc) {
+                    rotor.disc.rotation.y += 45.0 * safeDt;
+                }
+            }
+        } else {
+            const pitchRpmOffset = (this.pitchAngle / MAX_TILT) * 110.0;
+            const rollRpmOffset  = (this.rollAngle  / MAX_TILT) * 110.0;
+            const yawRpmOffset = effectiveYaw * 500.0;
+
+            if (this.rotors[0]) this.rotors[0].targetRPM = targetRPMCollective + pitchRpmOffset - rollRpmOffset - yawRpmOffset;
+            if (this.rotors[1]) this.rotors[1].targetRPM = targetRPMCollective + pitchRpmOffset + rollRpmOffset + yawRpmOffset;
+            if (this.rotors[2]) this.rotors[2].targetRPM = targetRPMCollective - pitchRpmOffset + rollRpmOffset - yawRpmOffset;
+            if (this.rotors[3]) this.rotors[3].targetRPM = targetRPMCollective - pitchRpmOffset - rollRpmOffset + yawRpmOffset;
+
+            // Suavizado dinámico exponencial de velocidad del rotor para todos los rotores disponibles
+            const motorAlpha = 1.0 - Math.exp(-12.0 * safeDt);
+            for (let i = 0; i < this.rotors.length; i++) {
+                const target = Math.max(CONFIG.drone.idleRPM, Math.min(CONFIG.drone.maxRPM, this.rotors[i].targetRPM || baseHoverRPM));
+                this.rotors[i].rpm += (target - this.rotors[i].rpm) * motorAlpha;
+
+                // (La rotación visual de las hélices se gestiona con el modelo de desenfoque continuo anti-estroboscópico en app3.js)
+                if (this.rotors[i].disc) {
+                    this.rotors[i].disc.rotation.y += 45.0 * safeDt;
+                }
+            }
         }
 
     }
@@ -31040,15 +31352,21 @@ class AgriDrone3 {
 
 
 
-        // 1. Calcular empuje individual de los 4 rotores
+        // 1. Calcular empuje individual de todos los rotores (8 motores coaxiales en T100, 4 en otros modelos)
 
         let totalThrustMag = 0;
+        const isX8Model = (this.currentModel === 'T100' && this.rotors.length === 8);
+        const activeRotorCount = isX8Model ? this.rotors.length : Math.min(4, this.rotors.length);
 
-        for (let i = 0; i < 4; i++) {
+        for (let i = 0; i < activeRotorCount; i++) {
 
-            const omega = (this.rotors[i].rpm * 2 * Math.PI) / 60.0;
+            const rotor = this.rotors[i];
 
-            totalThrustMag += CONFIG.drone.thrustCoeff * omega * omega;
+            const omega = (rotor.rpm * 2 * Math.PI) / 60.0;
+
+            const kThrust = (isX8Model && rotor.thrustCoeff) ? rotor.thrustCoeff : CONFIG.drone.thrustCoeff;
+
+            totalThrustMag += kThrust * omega * omega;
 
         }
 
@@ -34927,6 +35245,8 @@ class AgriTerrain {
 
         this.potreroTrees = [];
         this.potreroObstacles = [];
+        this.bananaPlants = [];
+        this.pinaCanaGroup = null;
         this.noSprayZones = [];
 
         this.windbreakObstaclesDefault = [];
@@ -34946,6 +35266,10 @@ class AgriTerrain {
         this.createNaranjoCrop();
 
         this.createPotreroCrop();
+
+        this.createBananoArrozCrop();
+
+        this.createPinaCanaCrop();
 
         this.createLandingPad();
 
@@ -35253,19 +35577,21 @@ class AgriTerrain {
             uDroneVel: { value: new THREE.Vector3(0, 0, 0) },
             uDownwashRadius: { value: 6.0 },
             uDownwashIntensity: { value: 0.0 },
+            uWindVec: { value: new THREE.Vector2(1.6, 0.9) },
             uTime: { value: 0.0 }
         };
 
         /**
          * Inyecta deformación elástica suave en el vertex shader de vegetación por el flujo de aire (downwash)
          * de los rotores del dron. Opera en coordenadas 3D reales (#include <project_vertex>) para funcionar
-         * sobre cultivos planos, camellones, laderas/montículos (Naranjo 5m) y árboles altos (Potrero).
+         * sobre cultivos planos, camellones, laderas/montículos (Naranjo 5m), caña flexible y árboles altos.
          */
         this.injectDownwashVertexShader = (shader, vegScale = 1.0, vegMode = 'tall_crop') => {
             shader.uniforms.uDronePos = this.downwashUniforms.uDronePos;
             shader.uniforms.uDroneVel = this.downwashUniforms.uDroneVel;
             shader.uniforms.uDownwashRadius = this.downwashUniforms.uDownwashRadius;
             shader.uniforms.uDownwashIntensity = this.downwashUniforms.uDownwashIntensity;
+            shader.uniforms.uWindVec = this.downwashUniforms.uWindVec;
             shader.uniforms.uTime = this.downwashUniforms.uTime;
 
             shader.vertexShader = shader.vertexShader.replace(
@@ -35275,6 +35601,7 @@ class AgriTerrain {
                  uniform vec3 uDroneVel;
                  uniform float uDownwashRadius;
                  uniform float uDownwashIntensity;
+                 uniform vec2 uWindVec;
                  uniform float uTime;`
             );
 
@@ -35307,6 +35634,19 @@ class AgriTerrain {
                     float leafTip = smoothstep(0.16, 0.65, length(transformed.xz)) * smoothstep(0.20, 0.90, wp.y);
                     flutterAmp += force * 0.045 * leafTip;
                     vertDisp += force * 0.030 * leafTip * sin(phase2 * 1.15);`;
+            } else if (vegMode === 'sugarcane_stalk') {
+                modeCode = `
+                    float hFlex = pow(clamp(wp.y / 3.0, 0.0, 1.15), 1.55);
+                    float swayAmp = force * 0.34 * hFlex;
+                    float flutterAmp = force * 0.085 * hFlex;
+                    float vertDisp = -(force * 0.080 * hFlex * hFlex);`;
+            } else if (vegMode === 'sugarcane_leaf') {
+                modeCode = `
+                    float hFlex = smoothstep(1.35, 3.85, wp.y);
+                    float tipReach = smoothstep(0.08, 0.85, length(transformed.xz));
+                    float swayAmp = force * (0.56 * hFlex + 0.18 * tipReach);
+                    float flutterAmp = force * (0.20 * hFlex + 0.08 * tipReach);
+                    float vertDisp = -(force * 0.36 * hFlex + abs(flutter) * force * 0.12 * tipReach);`;
             } else if (vegMode === 'canopy') {
                 modeCode = `
                     float swayAmp = force * 0.14;
@@ -37128,6 +37468,135 @@ shader.fragmentShader = shader.fragmentShader.replace(
         return 0.0;
     }
 
+    /**
+     * Geometría topográfica y cotas de agua para el escenario "Banano y Arroz":
+     * - Norte (Z > 4): Melgas acuáticas curveadas de arroz verde (0.80 m) en 6 terrazas suaves escalonadas (0.0 a 2.5 m)
+     * - Sur (Z < -4): Plantación de banano (4.0 m) a nivel 0.0 m con 3 canales longitudinales de riego
+     */
+    getBananoArrozTerraceInfo(x, z) {
+        if (z >= 4.0 && z <= 109.0 && Math.abs(x) <= 51.0) {
+            const curveOffset = 10.5 * Math.sin(x * 0.055 + 0.4) + 5.2 * Math.cos(x * 0.095 - 0.8);
+            const tierWidth = 15.5;
+            const s = (z - 4.5) + curveOffset;
+            const rawTier = s / tierWidth;
+            const tierIndex = Math.max(0, Math.min(5, Math.floor(rawTier)));
+            const tierElev = tierIndex * 0.50; // 0.00 m hasta 2.50 m
+            const waterY = tierElev + 0.09;
+            const frac = rawTier - tierIndex;
+
+            let groundY = tierElev;
+            let isBund = false;
+
+            // Bordos escalonados curveados entre terrazas consecutivas
+            if (rawTier >= 0.0 && rawTier < 6.0) {
+                const crestElev = Math.min(2.74, (tierIndex + 1) * 0.50 + 0.24);
+                const lowerCrest = tierElev + 0.24;
+                if (frac > 0.915 && tierIndex < 5) {
+                    const t = (frac - 0.915) / 0.085;
+                    const smooth = 0.5 - 0.5 * Math.cos(t * Math.PI);
+                    groundY = tierElev + smooth * (crestElev - tierElev);
+                    if (groundY > waterY - 0.02) isBund = true;
+                } else if (frac < 0.075 && tierIndex > 0) {
+                    const t = frac / 0.075;
+                    const smooth = 0.5 - 0.5 * Math.cos(t * Math.PI);
+                    groundY = lowerCrest - smooth * (lowerCrest - tierElev);
+                    if (groundY > waterY - 0.02) isBund = true;
+                }
+            }
+
+            // Bordos transversales curvos dividiendo las melgas largas
+            const crossS = x + 6.5 * Math.sin(z * 0.065) + 51.0;
+            const crossMod = (crossS % 34.0) / 34.0;
+            const distCross = Math.min(crossMod, 1.0 - crossMod);
+            if (distCross < 0.028) {
+                const tC = 1.0 - distCross / 0.028;
+                const smoothC = 0.5 - 0.5 * Math.cos(tC * Math.PI);
+                const crossY = tierElev + 0.26 * smoothC;
+                if (crossY > groundY) groundY = crossY;
+                if (groundY > waterY - 0.02) isBund = true;
+            }
+
+            // Bordo perimetral de la parcela Norte de arroz
+            if (z < 6.4 || z > 106.8 || Math.abs(x) > 48.8) {
+                let edgeFactor = 0.0;
+                if (z < 6.4) edgeFactor = Math.max(edgeFactor, Math.min(1.0, (6.4 - z) / 1.4));
+                if (z > 106.8) edgeFactor = Math.max(edgeFactor, Math.min(1.0, (z - 106.8) / 1.4));
+                if (Math.abs(x) > 48.8) edgeFactor = Math.max(edgeFactor, Math.min(1.0, (Math.abs(x) - 48.8) / 1.4));
+                const edgeY = (z < 5.5)
+                    ? (tierElev + 0.24) * Math.max(0.0, (z - 4.0) / 1.5)
+                    : tierElev + 0.26 * Math.sin(edgeFactor * Math.PI * 0.5);
+                if (z < 5.5) {
+                    groundY = edgeY;
+                } else if (edgeY > groundY) {
+                    groundY = edgeY;
+                }
+                if (groundY > waterY - 0.02 || z < 6.0) isBund = true;
+            }
+
+            return {
+                inRiceZone: true,
+                inBananaZone: false,
+                inCanal: false,
+                tierIndex,
+                tierElev,
+                waterY,
+                groundY,
+                isBund
+            };
+        }
+
+        // Zona Sur de Banano (Z: -108.5 a -4.5) elevada +0.28 m sobre suelo base para lucir 3 canales de riego reflejantes
+        if (z <= -4.5 && z >= -108.5 && Math.abs(x) <= 50.5) {
+            const rampT = (z > -6.5) ? Math.max(0.0, Math.min(1.0, (-4.5 - z) / 2.0)) : 1.0;
+            const landBaseY = 0.28 * (0.5 - 0.5 * Math.cos(rampT * Math.PI));
+            const canalCenters = [-32.0, 0.0, 32.0];
+            let minCanalDist = 999.0;
+            for (let c = 0; c < canalCenters.length; c++) {
+                const dc = Math.abs(x - canalCenters[c]);
+                if (dc < minCanalDist) minCanalDist = dc;
+            }
+            if (minCanalDist < 1.35 && z <= -6.8 && z >= -106.5) {
+                const bankT = Math.max(0.0, Math.min(1.0, (1.35 - minCanalDist) / 0.55));
+                const bedY = landBaseY - 0.26 * (0.5 - 0.5 * Math.cos(bankT * Math.PI));
+                return {
+                    inRiceZone: false,
+                    inBananaZone: true,
+                    inCanal: minCanalDist < 1.12,
+                    tierIndex: 0,
+                    tierElev: 0.0,
+                    waterY: 0.20,
+                    groundY: bedY,
+                    isBund: false
+                };
+            }
+            return {
+                inRiceZone: false,
+                inBananaZone: true,
+                inCanal: false,
+                tierIndex: 0,
+                tierElev: 0.0,
+                waterY: landBaseY,
+                groundY: landBaseY,
+                isBund: false
+            };
+        }
+
+        return {
+            inRiceZone: false,
+            inBananaZone: false,
+            inCanal: false,
+            tierIndex: 0,
+            tierElev: 0.0,
+            waterY: 0.0,
+            groundY: 0.0,
+            isBund: false
+        };
+    }
+
+    getBananoArrozTerrainHeight(x, z) {
+        return this.getBananoArrozTerraceInfo(x, z).groundY;
+    }
+
 
 
     getSurfaceElevationBelow(x, z) {
@@ -37211,6 +37680,65 @@ shader.fragmentShader = shader.fragmentShader.replace(
             }
 
             return checkWindbreak({ groundY, obstacleTopY: maxTopY, isOverCanopy, obstacleName: name });
+
+        } else if (this.cropType === 'banano_arroz') {
+
+            const info = this.getBananoArrozTerraceInfo(x, z);
+            if (info.inRiceZone) {
+                const surfaceY = info.isBund ? info.groundY : info.waterY;
+                const topY = info.isBund ? info.groundY : (info.waterY + 0.80);
+                const name = info.isBund ? 'Bordo de Terraza' : `Melga de Arroz Verde (Terraza ${info.tierIndex + 1} · 0.8m)`;
+                return checkWindbreak({
+                    groundY: surfaceY,
+                    obstacleTopY: topY,
+                    isOverCanopy: !info.isBund,
+                    obstacleName: name
+                });
+            }
+            if (info.inBananaZone) {
+                if (info.inCanal) {
+                    return checkWindbreak({
+                        groundY: info.waterY,
+                        obstacleTopY: info.waterY,
+                        isOverCanopy: false,
+                        obstacleName: 'Canal de Riego'
+                    });
+                }
+                let maxTopY = info.groundY;
+                let isOverCanopy = false;
+                let name = 'Suelo Plantación de Banano';
+                if (this.bananaPlants && this.bananaPlants.length > 0) {
+                    for (let i = 0; i < this.bananaPlants.length; i++) {
+                        const pl = this.bananaPlants[i];
+                        const distH = Math.hypot(x - pl.x, z - pl.z);
+                        if (distH <= (pl.canopyRadius || 1.85) + 0.35) {
+                            const topY = (pl.baseY || 0.0) + (pl.height || 4.0);
+                            if (topY > maxTopY) {
+                                maxTopY = topY;
+                                isOverCanopy = true;
+                                name = 'Plantación de Banano (4.0m)';
+                            }
+                        }
+                    }
+                }
+                return checkWindbreak({
+                    groundY: info.groundY,
+                    obstacleTopY: maxTopY,
+                    isOverCanopy,
+                    obstacleName: name
+                });
+            }
+            return checkWindbreak({ groundY: 0.0, obstacleTopY: 0.0, isOverCanopy: false, obstacleName: 'Camino Central' });
+
+        } else if (this.cropType === 'pina_cana') {
+
+            const info = this.getPinaCanaSurfaceInfo(x, z);
+            return checkWindbreak({
+                groundY: info.groundY,
+                obstacleTopY: info.canopyTopY,
+                isOverCanopy: info.canopyTopY > info.groundY + 0.05,
+                obstacleName: info.name
+            });
 
         } else if (this.cropType === 'naranjo') {
 
@@ -39232,6 +39760,1285 @@ shader.fragmentShader = shader.fragmentShader.replace(
         this.potreroGroup.add(ranchGroup);
     }
 
+    /**
+     * ESCENARIO 5: BANANO (4.0m SUR) Y ARROZ VERDE EN MELGAS ACUÁTICAS CURVEADAS (0.8m · TERRAZAS HASTA 2.5m NORTE)
+     */
+    createBananoArrozCrop() {
+        this.bananoArrozGroup = new THREE.Group();
+        this.bananaPlants = [];
+        this.bananoArrozWaterMats = [];
+
+        const fieldW = this.fieldWidth;
+        const fieldL = this.fieldLength;
+
+        const createRiceSeededNoise = (seedInit) => {
+            let s = seedInit >>> 0;
+            return () => {
+                s = (s * 1664525 + 1013904223) >>> 0;
+                return s / 4294967296;
+            };
+        };
+        const rand = createRiceSeededNoise(20261124);
+
+        // 1. Terreno de Terrazas Curveadas (Norte: Z [4, 109]) + Canales de Riego (Sur: Z [-108.5, -4.5])
+        const buildBananoArrozTerrainGeo = (yOffset = 0.0, includeColors = true) => {
+            const geo = new THREE.BufferGeometry();
+            const positions = [];
+            const uvs = [];
+            const colors = [];
+            const indices = [];
+
+            const colMud = new THREE.Color(0x3a3423);
+            const colBundEarth = new THREE.Color(0x4d3c28);
+            const colBundGrass = new THREE.Color(0x4b7c2b);
+            const colBananaSoil = new THREE.Color(0x4a3b26);
+            const colCanalMud = new THREE.Color(0x332b1c);
+            const tmpCol = new THREE.Color();
+
+            const addParcelGrid = (xMin, xMax, zMin, zMax, segX, segZ, isNorth) => {
+                const baseIdx = positions.length / 3;
+                for (let iz = 0; iz <= segZ; iz++) {
+                    const z = zMin + (iz / segZ) * (zMax - zMin);
+                    for (let ix = 0; ix <= segX; ix++) {
+                        const x = xMin + (ix / segX) * (xMax - xMin);
+                        const info = this.getBananoArrozTerraceInfo(x, z);
+                        const y = info.groundY + yOffset;
+                        positions.push(x, y, z);
+
+                        const u = (x + fieldW / 2) / fieldW;
+                        const v = (fieldL / 2 - z) / fieldL;
+                        uvs.push(u, v);
+
+                        if (includeColors) {
+                            if (isNorth) {
+                                const hAboveTier = Math.max(0.0, info.groundY - info.tierElev);
+                                if (hAboveTier < 0.05) {
+                                    tmpCol.copy(colMud);
+                                } else if (hAboveTier < 0.16) {
+                                    tmpCol.copy(colBundEarth).lerp(colBundGrass, (hAboveTier - 0.05) / 0.11 * 0.45);
+                                } else {
+                                    const jitter = 0.90 + 0.18 * Math.sin(x * 0.7 + z * 0.9);
+                                    tmpCol.copy(colBundGrass).multiplyScalar(jitter);
+                                }
+                            } else {
+                                if (info.groundY < -0.05) {
+                                    tmpCol.copy(colCanalMud);
+                                } else {
+                                    const grassPatch = Math.max(0.0, Math.sin(x * 0.35) * Math.cos(z * 0.25));
+                                    tmpCol.copy(colBananaSoil).lerp(colBundGrass, grassPatch * 0.35);
+                                }
+                            }
+                            colors.push(tmpCol.r, tmpCol.g, tmpCol.b);
+                        }
+                    }
+                }
+                const stride = segX + 1;
+                for (let iz = 0; iz < segZ; iz++) {
+                    for (let ix = 0; ix < segX; ix++) {
+                        const a = baseIdx + iz * stride + ix;
+                        const b = baseIdx + iz * stride + (ix + 1);
+                        const c = baseIdx + (iz + 1) * stride + ix;
+                        const d = baseIdx + (iz + 1) * stride + (ix + 1);
+                        indices.push(a, c, b);
+                        indices.push(b, c, d);
+                    }
+                }
+            };
+
+            addParcelGrid(-50.5, 50.5, 4.0, 108.5, 136, 136, true);
+            addParcelGrid(-50.5, 50.5, -108.5, -4.5, 96, 64, false);
+
+            geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+            geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+            if (includeColors) {
+                geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+            }
+            geo.setIndex(indices);
+            geo.computeVertexNormals();
+            return geo;
+        };
+
+        const baGroundGeo = buildBananoArrozTerrainGeo(0.0, true);
+        this.bananoArrozTerrainMat = new THREE.MeshStandardMaterial({
+            vertexColors: true,
+            roughness: 0.92,
+            metalness: 0.04,
+            polygonOffset: true,
+            polygonOffsetFactor: -1,
+            polygonOffsetUnits: -1
+        });
+        if (typeof this.setupWetShader === 'function') {
+            this.setupWetShader(this.bananoArrozTerrainMat, 0.48, 0.88);
+        }
+        const baTerrainMesh = new THREE.Mesh(baGroundGeo, this.bananoArrozTerrainMat);
+        baTerrainMesh.receiveShadow = true;
+        baTerrainMesh.name = 'Terrain_Banano_Arroz';
+        this.bananoArrozGroup.add(baTerrainMesh);
+
+        // Capa de Heatmap sobre terrazas curveadas de Arroz y suelo de Banano
+        const baHeatGeo = buildBananoArrozTerrainGeo(0.135, false);
+        this.bananoArrozHeatmapMat = new THREE.MeshBasicMaterial({
+            map: (this.wetUniforms && this.wetUniforms.wetMap) ? this.wetUniforms.wetMap.value : null,
+            transparent: true,
+            opacity: 0.90,
+            depthWrite: false,
+            polygonOffset: true,
+            polygonOffsetFactor: -1,
+            polygonOffsetUnits: -1
+        });
+        this.bananoArrozHeatmapMesh = new THREE.Mesh(baHeatGeo, this.bananoArrozHeatmapMat);
+        this.bananoArrozHeatmapMesh.renderOrder = 1;
+        this.bananoArrozHeatmapMesh.receiveShadow = false;
+        this.bananoArrozGroup.add(this.bananoArrozHeatmapMesh);
+
+        // 2. Shader de Agua Reflejante con Fresnel de Cielo/Sol + Ondas Concéntricas de Downwash del Dron
+        const waterVertexShader = `
+            varying vec3 vWorldPos;
+            void main() {
+                vec4 worldPos = modelMatrix * vec4(position, 1.0);
+                vWorldPos = worldPos.xyz;
+                gl_Position = projectionMatrix * viewMatrix * worldPos;
+            }
+        `;
+        const waterFragmentShader = `
+            uniform vec3 uDronePos;
+            uniform float uDownwashRadius;
+            uniform float uDownwashIntensity;
+            uniform float uTime;
+
+            varying vec3 vWorldPos;
+
+            void main() {
+                vec2 p = vWorldPos.xz;
+
+                // Brisa suave natural sobre el espejo de agua
+                float w1 = sin(p.x * 2.4 + uTime * 1.35 + cos(p.y * 1.7) * 0.8);
+                float w2 = cos(p.y * 2.9 - uTime * 1.15 + sin(p.x * 2.1) * 0.7);
+                float w3 = sin((p.x + p.y) * 5.1 - uTime * 2.1) * 0.45;
+                vec2 grad = vec2(w1 + w3 * 0.7, w2 + w3 * 0.7) * 0.032;
+
+                // Ondas concéntricas dinámicas del aire de los rotores (downwash)
+                vec2 dVec = p - uDronePos.xz;
+                float distD = length(dVec);
+                float altGap = max(0.0, uDronePos.y - vWorldPos.y);
+                float hAtten = clamp(1.0 - altGap / 11.5, 0.0, 1.0);
+                float washStrength = uDownwashIntensity * hAtten;
+
+                float foamMask = 0.0;
+                if (washStrength > 0.01 && distD < max(uDownwashRadius * 1.6, 12.0)) {
+                    float radDecay = exp(-distD / max(2.2, uDownwashRadius * 0.72));
+                    float ripplePhase = distD * 5.4 - uTime * 14.0;
+                    float radialWave = sin(ripplePhase) * 0.65 + cos(ripplePhase * 1.65 + 0.7) * 0.35;
+                    vec2 dirOut = (distD > 0.05) ? (dVec / distD) : vec2(1.0, 0.0);
+                    grad += dirOut * (radialWave * washStrength * radDecay * 0.28);
+
+                    // Ligero halo espumoso bajo la columna de aire al volar rasante
+                    float ringPulse = sin(distD * 4.2 - uTime * 11.0) * 0.5 + 0.5;
+                    foamMask = smoothstep(3.2, 0.35, distD) * washStrength * (0.20 + 0.35 * ringPulse);
+                }
+
+                vec3 N = normalize(vec3(-grad.x, 1.0, -grad.y));
+                vec3 V = normalize(cameraPosition - vWorldPos);
+                float NdotV = max(dot(N, V), 0.04);
+
+                // Fresnel de Schlick para agua tranquila con reflejos vivos
+                float fresnel = clamp(0.09 + 0.91 * pow(1.0 - NdotV, 3.8), 0.0, 1.0);
+
+                // Color profundo de agua somera sobre suelo de arrozal
+                vec3 shallowWater = vec3(0.08, 0.20, 0.14);
+                vec3 deepMirrorTint = vec3(0.11, 0.27, 0.24);
+                vec3 waterBase = mix(shallowWater, deepMirrorTint, fresnel * 0.55);
+
+                // Vector reflejado: cielo cerúleo, nubes suaves y brillos especulares del sol
+                vec3 R = reflect(-V, N);
+                float skyH = clamp(R.y, 0.0, 1.0);
+                vec3 zenithCol = vec3(0.20, 0.50, 0.86);
+                vec3 horizonCol = vec3(0.76, 0.90, 0.98);
+                vec3 skyRefl = mix(horizonCol, zenithCol, pow(skyH, 0.55));
+
+                // Nubes suaves reflejadas
+                float cloudN = sin(R.x * 5.2 + uTime * 0.05) * cos(R.z * 4.4 - uTime * 0.04);
+                float cloudBand = smoothstep(0.15, 0.78, cloudN) * (1.0 - skyH * 0.65);
+                skyRefl = mix(skyRefl, vec3(0.95, 0.97, 0.99), cloudBand * 0.38);
+
+                // Destello solar nítido (en el sol y sobre las olas del downwash)
+                vec3 sunDir = normalize(vec3(0.42, 0.78, 0.45));
+                float specTight = pow(max(dot(R, sunDir), 0.0), 84.0);
+                float specBroad = pow(max(dot(R, sunDir), 0.0), 14.0);
+                vec3 sunGlint = vec3(1.0, 0.96, 0.84) * (specTight * 1.15 + specBroad * 0.22);
+
+                vec3 col = mix(waterBase, skyRefl, fresnel) + sunGlint;
+                col = mix(col, vec3(0.86, 0.95, 0.96), clamp(foamMask, 0.0, 0.45));
+
+                gl_FragColor = vec4(col, 0.88);
+            }
+        `;
+
+        const riceWaterMat = new THREE.ShaderMaterial({
+            uniforms: {
+                uDronePos: this.downwashUniforms.uDronePos,
+                uDownwashRadius: this.downwashUniforms.uDownwashRadius,
+                uDownwashIntensity: this.downwashUniforms.uDownwashIntensity,
+                uTime: this.downwashUniforms.uTime
+            },
+            vertexShader: waterVertexShader,
+            fragmentShader: waterFragmentShader,
+            transparent: true,
+            depthWrite: true
+        });
+        this.bananoArrozWaterMats.push(riceWaterMat);
+
+        // Construir 6 mallas de espejo de agua planas (una por terraza curveada a cota exacta tierElev + 0.09)
+        const xWMin = -50.2, xWMax = 50.2, zWMin = 4.5, zWMax = 108.0;
+        const wSegX = 110, wSegZ = 110;
+        for (let tierIdx = 0; tierIdx < 6; tierIdx++) {
+            const wPos = [];
+            const wIdx = [];
+            const wY = tierIdx * 0.50 + 0.09;
+            const rawGrid = new Float32Array((wSegX + 1) * (wSegZ + 1));
+
+            for (let iz = 0; iz <= wSegZ; iz++) {
+                const z = zWMin + (iz / wSegZ) * (zWMax - zWMin);
+                for (let ix = 0; ix <= wSegX; ix++) {
+                    const x = xWMin + (ix / wSegX) * (xWMax - xWMin);
+                    const curveOffset = 10.5 * Math.sin(x * 0.055 + 0.4) + 5.2 * Math.cos(x * 0.095 - 0.8);
+                    const rawTier = ((z - 4.5) + curveOffset) / 15.5;
+                    rawGrid[iz * (wSegX + 1) + ix] = rawTier;
+                    wPos.push(x, wY, z);
+                }
+            }
+            const wStride = wSegX + 1;
+            const minBand = (tierIdx === 0) ? -2.0 : (tierIdx - 0.10);
+            const maxBand = (tierIdx === 5) ? 9.0 : (tierIdx + 1.10);
+            for (let iz = 0; iz < wSegZ; iz++) {
+                for (let ix = 0; ix < wSegX; ix++) {
+                    const i00 = iz * wStride + ix;
+                    const i10 = iz * wStride + (ix + 1);
+                    const i01 = (iz + 1) * wStride + ix;
+                    const i11 = (iz + 1) * wStride + (ix + 1);
+
+                    const rMax = Math.max(rawGrid[i00], rawGrid[i10], rawGrid[i01], rawGrid[i11]);
+                    const rMin = Math.min(rawGrid[i00], rawGrid[i10], rawGrid[i01], rawGrid[i11]);
+                    if (rMax >= minBand && rMin <= maxBand) {
+                        wIdx.push(i00, i01, i10);
+                        wIdx.push(i10, i01, i11);
+                    }
+                }
+            }
+
+            if (wIdx.length > 0) {
+                const tierWaterGeo = new THREE.BufferGeometry();
+                tierWaterGeo.setAttribute('position', new THREE.Float32BufferAttribute(wPos, 3));
+                tierWaterGeo.setIndex(wIdx);
+                const tierWaterMesh = new THREE.Mesh(tierWaterGeo, riceWaterMat);
+                tierWaterMesh.name = `RiceWater_Tier_${tierIdx}`;
+                this.bananoArrozGroup.add(tierWaterMesh);
+            }
+        }
+
+        // 3 canales de agua reflejantes en la plantación de Banano (Sur, elevados sobre soilMeshDefault)
+        const canalGeo = new THREE.PlaneGeometry(2.15, 99.6, 8, 48);
+        canalGeo.rotateX(-Math.PI / 2);
+        [-32.0, 0.0, 32.0].forEach((cx, idx) => {
+            const canalMesh = new THREE.Mesh(canalGeo, riceWaterMat);
+            canalMesh.position.set(cx, 0.20, -56.6);
+            canalMesh.name = `BananaCanalWater_${idx}`;
+            this.bananoArrozGroup.add(canalMesh);
+        });
+
+        // 3. Plantas de Arroz Verde (80 cm de alto sobre la lámina de agua, InstancedMesh reactivo al aire)
+        const createGreenRiceClumpGeo = () => {
+            const geo = new THREE.BufferGeometry();
+            const pos = [];
+            const col = [];
+            const idx = [];
+
+            const colWaterline = new THREE.Color(0x1b5722);
+            const colMidGreen  = new THREE.Color(0x3f9e2f);
+            const colTipGreen  = new THREE.Color(0x6fd145);
+            const tmpC = new THREE.Color();
+
+            const bladeCount = 11;
+            const segs = 3;
+            for (let b = 0; b < bladeCount; b++) {
+                const ang = (b / bladeCount) * Math.PI * 2 + (b % 2) * 0.25;
+                const dirX = Math.cos(ang);
+                const dirZ = Math.sin(ang);
+                const perpX = -dirZ;
+                const perpZ = dirX;
+
+                const isInner = (b % 3 === 0);
+                const h = isInner ? 0.83 : (0.74 + (b % 3) * 0.04); // ~0.80 m alto
+                const reach = isInner ? 0.14 : (0.24 + (b % 2) * 0.06);
+                const baseOff = 0.02 + (b % 3) * 0.015;
+                const baseW = isInner ? 0.022 : 0.026;
+
+                const startV = pos.length / 3;
+                for (let s = 0; s <= segs; s++) {
+                    const t = s / segs;
+                    const y = t * h - Math.pow(t, 3.0) * (isInner ? 0.04 : 0.08);
+                    const rad = baseOff + Math.pow(t, 1.35) * reach;
+                    const w = baseW * (1.0 - t * 0.85);
+                    const cx = dirX * rad;
+                    const cz = dirZ * rad;
+
+                    if (t < 0.45) {
+                        tmpC.copy(colWaterline).lerp(colMidGreen, t / 0.45);
+                    } else {
+                        tmpC.copy(colMidGreen).lerp(colTipGreen, (t - 0.45) / 0.55);
+                    }
+
+                    pos.push(cx - perpX * w, y, cz - perpZ * w);
+                    col.push(tmpC.r, tmpC.g, tmpC.b);
+                    pos.push(cx + perpX * w, y, cz + perpZ * w);
+                    col.push(tmpC.r, tmpC.g, tmpC.b);
+                }
+
+                for (let s = 0; s < segs; s++) {
+                    const v0 = startV + s * 2;
+                    const v1 = v0 + 1;
+                    const v2 = v0 + 2;
+                    const v3 = v0 + 3;
+                    idx.push(v0, v1, v2);
+                    idx.push(v1, v3, v2);
+                }
+            }
+
+            geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+            geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+            geo.setIndex(idx);
+            geo.computeVertexNormals();
+            return geo;
+        };
+
+        const riceClumpGeo = createGreenRiceClumpGeo();
+        this.ricePlantMat = new THREE.MeshStandardMaterial({
+            vertexColors: true,
+            roughness: 0.70,
+            metalness: 0.0,
+            side: THREE.DoubleSide
+        });
+        if (typeof this.setupWetShader === 'function') {
+            this.setupWetShader(this.ricePlantMat, 0.42, 0.84, true, 1.25, 'tall_crop');
+        }
+
+        const riceTransforms = [];
+        const riceColors = [];
+        const riceDummy = new THREE.Object3D();
+        const rToneA = new THREE.Color(0xe6f7da);
+        const rToneB = new THREE.Color(0xffffff);
+        const rToneC = new THREE.Color(0xd2f0c8);
+
+        for (let z = 6.8; z <= 106.0; z += 1.05) {
+            for (let x = -48.0; x <= 48.0; x += 0.92) {
+                const jx = x + (rand() - 0.5) * 0.24;
+                const jz = z + (rand() - 0.5) * 0.24;
+                const info = this.getBananoArrozTerraceInfo(jx, jz);
+                if (!info.inRiceZone || info.isBund) continue;
+
+                // Verificar margen de seguridad respecto a bordos cercanos para no plantar arroz seco en talud
+                const infoN = this.getBananoArrozTerraceInfo(jx, jz + 0.55);
+                const infoS = this.getBananoArrozTerraceInfo(jx, jz - 0.55);
+                if (infoN.isBund || infoS.isBund || infoN.tierIndex !== info.tierIndex || infoS.tierIndex !== info.tierIndex) {
+                    continue;
+                }
+
+                riceDummy.position.set(jx, info.waterY - 0.02, jz);
+                riceDummy.rotation.set((rand() - 0.5) * 0.06, rand() * Math.PI * 2, (rand() - 0.5) * 0.06);
+                const sXZ = 0.88 + rand() * 0.26;
+                const sY = 0.95 + rand() * 0.10; // ~0.76 - 0.84 m (promedio 0.80 m)
+                riceDummy.scale.set(sXZ, sY, sXZ);
+                riceDummy.updateMatrix();
+                riceTransforms.push(riceDummy.matrix.clone());
+
+                const pick = rand();
+                riceColors.push(pick < 0.33 ? rToneA : (pick < 0.68 ? rToneB : rToneC));
+            }
+        }
+
+        const riceInstMesh = new THREE.InstancedMesh(riceClumpGeo, this.ricePlantMat, Math.max(1, riceTransforms.length));
+        riceInstMesh.name = 'Rice_Paddy_Green_80cm';
+        riceInstMesh.castShadow = false;
+        riceInstMesh.receiveShadow = true;
+        for (let i = 0; i < riceTransforms.length; i++) {
+            riceInstMesh.setMatrixAt(i, riceTransforms[i]);
+            riceInstMesh.setColorAt(i, riceColors[i]);
+        }
+        riceInstMesh.instanceMatrix.needsUpdate = true;
+        if (riceInstMesh.instanceColor) riceInstMesh.instanceColor.needsUpdate = true;
+        this.bananoArrozGroup.add(riceInstMesh);
+
+        // 4. Plantación de Banano (4.0 m de alto en Parcela Sur: Z [-106, -7]) con hojas anchas y racimos
+        const createBananaLeafGeo = () => {
+            const geo = new THREE.BufferGeometry();
+            const pos = [];
+            const col = [];
+            const idx = [];
+            const segL = 7;
+
+            const colPetiole = new THREE.Color(0x6d9934);
+            const colBlade = new THREE.Color(0x2e7d26);
+            const colEdge = new THREE.Color(0x4ba332);
+            const tmpC = new THREE.Color();
+
+            for (let i = 0; i <= segL; i++) {
+                const t = i / segL;
+                // Hoja ancha de banano: ~2.15 m de extensión lateral y arqueo hacia arriba (+1.28 m hasta ~4.0 m) y punta colgante
+                const rDist = 0.08 + t * 2.12;
+                const yArch = Math.sin(t * Math.PI * 0.78) * 1.15 - Math.pow(Math.max(0, t - 0.55) / 0.45, 2.0) * 0.42;
+                const halfW = (t < 0.14)
+                    ? (0.045 + t * 1.4)
+                    : (0.31 * Math.sin(Math.pow((t - 0.06) / 0.94, 0.72) * Math.PI) + 0.025);
+                const ribDip = 0.055 * Math.sin(t * Math.PI);
+
+                tmpC.copy(colPetiole).lerp(colBlade, Math.min(1.0, t * 2.2));
+                const vEdge = tmpC.clone().lerp(colEdge, 0.55);
+
+                // Borde izq, nervadura central, borde der (pliegue natural en V de hoja de banano)
+                pos.push(-halfW, yArch - ribDip * 0.6, rDist);
+                col.push(vEdge.r, vEdge.g, vEdge.b);
+
+                pos.push(0.0, yArch + ribDip * 0.4, rDist);
+                col.push(tmpC.r, tmpC.g, tmpC.b);
+
+                pos.push(halfW, yArch - ribDip * 0.6, rDist);
+                col.push(vEdge.r, vEdge.g, vEdge.b);
+            }
+
+            for (let i = 0; i < segL; i++) {
+                const b0 = i * 3;
+                const b1 = b0 + 3;
+                idx.push(b0, b1, b0 + 1);
+                idx.push(b0 + 1, b1, b1 + 1);
+                idx.push(b0 + 1, b1 + 1, b0 + 2);
+                idx.push(b0 + 2, b1 + 1, b1 + 2);
+            }
+
+            geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+            geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+            geo.setIndex(idx);
+            geo.computeVertexNormals();
+            return geo;
+        };
+
+        const bananaStemGeo = new THREE.CylinderGeometry(0.115, 0.185, 2.78, 9);
+        bananaStemGeo.translate(0, 1.39, 0);
+
+        const bananaLeafGeo = createBananaLeafGeo();
+
+        // Racimo orgánico con manos escalonadas de banano (perfil Lathe con nervaduras)
+        const bunchPts = [];
+        for (let k = 0; k <= 18; k++) {
+            const u = k / 18;
+            const yy = (0.5 - u) * 0.72;
+            const taper = Math.sin(u * Math.PI * 0.92 + 0.12);
+            const handWave = 0.032 * Math.sin(u * Math.PI * 10.0);
+            const rad = Math.max(0.015, (0.145 * taper + handWave) * (1.0 - 0.25 * u));
+            bunchPts.push(new THREE.Vector2(rad, yy));
+        }
+        const bananaBunchGeo = new THREE.LatheGeometry(bunchPts, 10);
+        const bananaBellGeo = new THREE.ConeGeometry(0.075, 0.22, 8);
+        bananaBellGeo.rotateX(Math.PI);
+
+        const bananaStemMat = new THREE.MeshStandardMaterial({
+            color: 0x5c7a36,
+            roughness: 0.86,
+            metalness: 0.02
+        });
+        this.bananaLeafMat = new THREE.MeshStandardMaterial({
+            vertexColors: true,
+            roughness: 0.54,
+            metalness: 0.03,
+            side: THREE.DoubleSide
+        });
+        if (typeof this.setupWetShader === 'function') {
+            this.setupWetShader(this.bananaLeafMat, 0.44, 0.76, true, 1.15, 'tall_crop');
+        }
+        const bananaBunchMat = new THREE.MeshStandardMaterial({
+            color: 0x9ec437,
+            roughness: 0.62,
+            metalness: 0.02
+        });
+        const bananaBellMat = new THREE.MeshStandardMaterial({
+            color: 0x6b1d2f,
+            roughness: 0.65,
+            metalness: 0.04
+        });
+
+        const stemMats = [];
+        const leafMats = [];
+        const leafColors = [];
+        const bunchMats = [];
+        const bellMats = [];
+
+        const bDummy = new THREE.Object3D();
+        const lDummy = new THREE.Object3D();
+        const leafTintA = new THREE.Color(0xf0fae6);
+        const leafTintB = new THREE.Color(0xffffff);
+        const leafTintC = new THREE.Color(0xdcf2cd);
+
+        for (let z = -105.0; z <= -7.5; z += 4.35) {
+            for (let x = -47.5; x <= 47.5; x += 4.35) {
+                const px = x + (rand() - 0.5) * 0.45;
+                const pz = z + (rand() - 0.5) * 0.45;
+
+                // Respetar los 3 canales de riego longitudinales (-32, 0, +32)
+                if (Math.abs(px - (-32.0)) < 2.35 || Math.abs(px) < 2.35 || Math.abs(px - 32.0) < 2.35) {
+                    continue;
+                }
+
+                const hScale = 0.96 + rand() * 0.08; // ~4.0 m altura total con penacho
+                const yawB = rand() * Math.PI * 2;
+                const bBaseY = 0.28;
+
+                bDummy.position.set(px, bBaseY, pz);
+                bDummy.rotation.set((rand() - 0.5) * 0.04, yawB, (rand() - 0.5) * 0.04);
+                bDummy.scale.set(0.95 + rand() * 0.14, hScale, 0.95 + rand() * 0.14);
+                bDummy.updateMatrix();
+                stemMats.push(bDummy.matrix.clone());
+
+                this.bananaPlants.push({
+                    x: px,
+                    z: pz,
+                    baseY: bBaseY,
+                    height: 4.0 * hScale,
+                    branchHeight: 2.35 * hScale,
+                    canopyRadius: 1.90,
+                    trunkRadius: 0.20
+                });
+
+                // 7 hojas anchas en corona espiralada (alcanzan ~4.0 m en la parte alta del arco)
+                const leavesPerPlant = 7;
+                for (let l = 0; l < leavesPerPlant; l++) {
+                    const lYaw = yawB + (l / leavesPerPlant) * Math.PI * 2 + (rand() - 0.5) * 0.22;
+                    const lPitch = (l % 2 === 0) ? (-0.28 + rand() * 0.12) : (-0.05 + rand() * 0.14);
+                    const crownY = bBaseY + (2.48 + (l % 3) * 0.11) * hScale;
+                    lDummy.position.set(px, crownY, pz);
+                    lDummy.rotation.set(lPitch, lYaw, (rand() - 0.5) * 0.12, 'YXZ');
+                    const ls = (0.90 + rand() * 0.20) * hScale;
+                    lDummy.scale.set(ls, ls, ls);
+                    lDummy.updateMatrix();
+                    leafMats.push(lDummy.matrix.clone());
+                    const lp = rand();
+                    leafColors.push(lp < 0.34 ? leafTintA : (lp < 0.68 ? leafTintB : leafTintC));
+                }
+
+                // Racimo de banano + bellota colgante en el ~85% de las plantas
+                if (rand() < 0.85) {
+                    const bx = px + Math.sin(yawB) * 0.28;
+                    const bz = pz + Math.cos(yawB) * 0.28;
+                    bDummy.position.set(bx, bBaseY + 2.32 * hScale, bz);
+                    bDummy.rotation.set(0.10, yawB, 0);
+                    bDummy.scale.set(1.0, 1.0, 1.0);
+                    bDummy.updateMatrix();
+                    bunchMats.push(bDummy.matrix.clone());
+
+                    bDummy.position.set(bx, bBaseY + 1.86 * hScale, bz);
+                    bDummy.rotation.set(0, yawB, 0);
+                    bDummy.updateMatrix();
+                    bellMats.push(bDummy.matrix.clone());
+                }
+            }
+        }
+
+        const stemInst = new THREE.InstancedMesh(bananaStemGeo, bananaStemMat, Math.max(1, stemMats.length));
+        stemInst.name = 'Banana_Pseudostems';
+        stemInst.castShadow = true;
+        stemInst.receiveShadow = true;
+        for (let i = 0; i < stemMats.length; i++) stemInst.setMatrixAt(i, stemMats[i]);
+        stemInst.instanceMatrix.needsUpdate = true;
+        this.bananoArrozGroup.add(stemInst);
+
+        const leafInst = new THREE.InstancedMesh(bananaLeafGeo, this.bananaLeafMat, Math.max(1, leafMats.length));
+        leafInst.name = 'Banana_Canopy_Leaves_4m';
+        leafInst.castShadow = true;
+        leafInst.receiveShadow = true;
+        for (let i = 0; i < leafMats.length; i++) {
+            leafInst.setMatrixAt(i, leafMats[i]);
+            leafInst.setColorAt(i, leafColors[i]);
+        }
+        leafInst.instanceMatrix.needsUpdate = true;
+        if (leafInst.instanceColor) leafInst.instanceColor.needsUpdate = true;
+        this.bananoArrozGroup.add(leafInst);
+
+        const bunchInst = new THREE.InstancedMesh(bananaBunchGeo, bananaBunchMat, Math.max(1, bunchMats.length));
+        bunchInst.name = 'Banana_Bunches';
+        for (let i = 0; i < bunchMats.length; i++) bunchInst.setMatrixAt(i, bunchMats[i]);
+        bunchInst.instanceMatrix.needsUpdate = true;
+        this.bananoArrozGroup.add(bunchInst);
+
+        const bellInst = new THREE.InstancedMesh(bananaBellGeo, bananaBellMat, Math.max(1, bellMats.length));
+        bellInst.name = 'Banana_Blossoms';
+        for (let i = 0; i < bellMats.length; i++) bellInst.setMatrixAt(i, bellMats[i]);
+        bellInst.instanceMatrix.needsUpdate = true;
+        this.bananoArrozGroup.add(bellInst);
+
+        this.bananoArrozGroup.visible = (this.cropType === 'banano_arroz');
+        this.scene.add(this.bananoArrozGroup);
+    }
+
+    /**
+     * Calcula elevación exacta en el escenario Piña (Norte) y Caña de Azúcar (Sur)
+     * - Norte (Z ∈ [7.5, 107.5]): 4 caminos de 4.0 m alternados con 3 bloques de 28.0 m (4×4 + 3×28 = 100.0 m).
+     *   Surcos trapezoidales perpendiculares a los caminos: 0.80 m base, 0.50 m corona superior, 0.30 m altura, paso 1.20 m.
+     *   Rosetas de piña de 0.60 m sobre la cama → cima total 0.90 m.
+     * - Sur (Z ∈ [-107.5, -7.5]): Caña de azúcar con tallo de 3.0 m y hojas flexibles hasta 4.0 m.
+     */
+    getPinaCanaSurfaceInfo(x, z) {
+        if (Math.abs(x) <= 50.0 && z >= 7.5 && z <= 107.5) {
+            const zRel = z - 7.5;
+            const mod32 = zRel % 32.0;
+            if (zRel >= 96.0 || mod32 < 4.0) {
+                return {
+                    inPinaZone: false,
+                    inRoad: true,
+                    inCanaZone: false,
+                    groundY: 0.0,
+                    canopyTopY: 0.0,
+                    bedCrestY: 0.0,
+                    name: 'Camino Agrícola Piña (4.0 m)'
+                };
+            }
+            if (x >= -49.6 && x <= 49.6) {
+                const nearestCenter = -49.2 + Math.round((x + 49.2) / 1.20) * 1.20;
+                const dx = Math.abs(x - nearestCenter);
+                if (dx <= 0.25) {
+                    return {
+                        inPinaZone: true,
+                        inRoad: false,
+                        inCanaZone: false,
+                        groundY: 0.30,
+                        canopyTopY: 0.90,
+                        bedCrestY: 0.30,
+                        name: 'Cama Trapezoidal de Piña (Corona 0.30 m · Cultivo 0.90 m)'
+                    };
+                } else if (dx < 0.40) {
+                    const t = (0.40 - dx) / 0.15;
+                    const gY = 0.30 * t;
+                    return {
+                        inPinaZone: true,
+                        inRoad: false,
+                        inCanaZone: false,
+                        groundY: gY,
+                        canopyTopY: Math.max(gY, 0.30 + 0.45 * t),
+                        bedCrestY: gY,
+                        name: 'Talud de Cama de Piña'
+                    };
+                }
+            }
+            return {
+                inPinaZone: true,
+                inRoad: false,
+                inCanaZone: false,
+                groundY: 0.0,
+                canopyTopY: 0.0,
+                bedCrestY: 0.0,
+                name: 'Pasillo entre Surcos de Piña'
+            };
+        }
+
+        if (Math.abs(x) <= 50.0 && z >= -107.5 && z <= -7.5) {
+            if (Math.hypot(x - (-18.0), z - (-18.0)) < 2.2) {
+                return {
+                    inPinaZone: false,
+                    inRoad: false,
+                    inCanaZone: false,
+                    groundY: 0.0,
+                    canopyTopY: 0.0,
+                    bedCrestY: 0.0,
+                    name: 'Claro Manga de Viento'
+                };
+            }
+            return {
+                inPinaZone: false,
+                inRoad: false,
+                inCanaZone: true,
+                groundY: 0.0,
+                canopyTopY: 4.00,
+                bedCrestY: 0.0,
+                name: 'Caña de Azúcar (Tallo 3.0 m · Hojas Flexibles 4.0 m)'
+            };
+        }
+
+        return {
+            inPinaZone: false,
+            inRoad: false,
+            inCanaZone: false,
+            groundY: 0.0,
+            canopyTopY: 0.0,
+            bedCrestY: 0.0,
+            name: 'Camino Central'
+        };
+    }
+
+    /**
+     * ESCENARIO 6: PIÑA EN CAMAS TRAPEZOIDALES (NORTE: 3 BLOQUES DE 28m + 4 CAMINOS DE 4m · 20cm ENTRE PLANTAS)
+     * Y CAÑA DE AZÚCAR DE PORTE ALTO FLEXIBLE (SUR: TALLOS 3.0m + HOJAS SUPERIORES HASTA 4.0m)
+     */
+    createPinaCanaCrop() {
+        this.pinaCanaGroup = new THREE.Group();
+
+        const createSeededRand = (seedInit) => {
+            let s = seedInit >>> 0;
+            return () => {
+                s = (s * 1664525 + 1013904223) >>> 0;
+                return s / 4294967296;
+            };
+        };
+        const rand = createSeededRand(20261127);
+
+        // 1. Suelo Agrícola Norte (Piña) y Sur (Caña) + 4 Caminos de Tierra Roja Compactada de 4.0 m
+        const groundFloorMat = new THREE.MeshStandardMaterial({
+            color: 0x4b3826,
+            roughness: 0.94,
+            metalness: 0.02,
+            polygonOffset: true,
+            polygonOffsetFactor: -1,
+            polygonOffsetUnits: -1
+        });
+        if (typeof this.setupWetShader === 'function') {
+            this.setupWetShader(groundFloorMat, 0.45, 0.85);
+        }
+        const addUVPlane = (w, l, xCenter, zCenter, yHeight, mat, name) => {
+            const g = new THREE.PlaneGeometry(w, l, 1, 1);
+            g.rotateX(-Math.PI / 2);
+            const uv = g.attributes.uv;
+            for (let i = 0; i < uv.count; i++) {
+                const lx = g.attributes.position.getX(i) + xCenter;
+                const lz = g.attributes.position.getZ(i) + zCenter;
+                uv.setXY(i, (lx + this.fieldWidth / 2) / this.fieldWidth, (this.fieldLength / 2 - lz) / this.fieldLength);
+            }
+            uv.needsUpdate = true;
+            const m = new THREE.Mesh(g, mat);
+            m.position.set(xCenter, yHeight, zCenter);
+            m.receiveShadow = true;
+            m.name = name;
+            this.pinaCanaGroup.add(m);
+            return m;
+        };
+        addUVPlane(102.0, 101.0, 0.0, 57.5, 0.015, groundFloorMat, 'Pina_BaseFloor');
+        addUVPlane(102.0, 101.0, 0.0, -57.5, 0.015, groundFloorMat, 'Cana_BaseFloor');
+
+        // Textura procedural para los 4 caminos de tierra de 4.0 m (huellas de tractor y tono ocre-café como imagen 3)
+        const roadCanvas = document.createElement('canvas');
+        roadCanvas.width = 512;
+        roadCanvas.height = 128;
+        const rCtx = roadCanvas.getContext('2d');
+        rCtx.fillStyle = '#8b6a4b';
+        rCtx.fillRect(0, 0, 512, 128);
+        rCtx.fillStyle = 'rgba(65, 45, 28, 0.34)';
+        rCtx.fillRect(0, 26, 512, 18);
+        rCtx.fillRect(0, 84, 512, 18);
+        rCtx.fillStyle = 'rgba(182, 148, 108, 0.25)';
+        rCtx.fillRect(0, 54, 512, 20);
+        for (let k = 0; k < 1400; k++) {
+            const px = rand() * 512;
+            const py = rand() * 128;
+            rCtx.fillStyle = (k % 2 === 0) ? 'rgba(55,40,24,0.22)' : 'rgba(195,165,125,0.18)';
+            rCtx.fillRect(px, py, 2 + rand() * 5, 1 + rand() * 2);
+        }
+        const roadTex = new THREE.CanvasTexture(roadCanvas);
+        roadTex.wrapS = THREE.RepeatWrapping;
+        roadTex.wrapT = THREE.ClampToEdgeWrapping;
+        roadTex.repeat.set(8, 1);
+
+        const roadMat = new THREE.MeshStandardMaterial({
+            map: roadTex,
+            roughness: 0.90,
+            metalness: 0.02,
+            polygonOffset: true,
+            polygonOffsetFactor: -2,
+            polygonOffsetUnits: -2
+        });
+        if (typeof this.setupWetShader === 'function') {
+            this.setupWetShader(roadMat, 0.50, 0.72);
+        }
+        const roadCentersZ = [9.5, 41.5, 73.5, 105.5]; // 4 caminos de 4.0 m exactos
+        roadCentersZ.forEach((rz, idx) => {
+            addUVPlane(100.0, 4.0, 0.0, rz, 0.026, roadMat, `Pina_Camino_${idx + 1}`);
+        });
+
+        // Capa de Heatmap sobre caminos de Piña y suelo de Caña Sur (sin Z-fighting)
+        const heatGeo = new THREE.BufferGeometry();
+        const hPos = [];
+        const hUv = [];
+        const hIdx = [];
+        const addHeatRect = (x0, x1, z0, z1, yH) => {
+            const b = hPos.length / 3;
+            const pts = [[x0, z0], [x1, z0], [x0, z1], [x1, z1]];
+            pts.forEach(([px, pz]) => {
+                hPos.push(px, yH, pz);
+                hUv.push((px + this.fieldWidth / 2) / this.fieldWidth, (this.fieldLength / 2 - pz) / this.fieldLength);
+            });
+            hIdx.push(b, b + 2, b + 1, b + 1, b + 2, b + 3);
+        };
+        addHeatRect(-50.0, 50.0, -107.5, -7.5, 0.032);
+        roadCentersZ.forEach(rz => addHeatRect(-50.0, 50.0, rz - 2.0, rz + 2.0, 0.034));
+        heatGeo.setAttribute('position', new THREE.Float32BufferAttribute(hPos, 3));
+        heatGeo.setAttribute('uv', new THREE.Float32BufferAttribute(hUv, 2));
+        heatGeo.setIndex(hIdx);
+
+        this.pinaCanaHeatmapMat = new THREE.MeshBasicMaterial({
+            map: (this.wetUniforms && this.wetUniforms.wetMap) ? this.wetUniforms.wetMap.value : null,
+            transparent: true,
+            opacity: 0.90,
+            depthWrite: false,
+            polygonOffset: true,
+            polygonOffsetFactor: -3,
+            polygonOffsetUnits: -3
+        });
+        this.pinaCanaHeatmapMesh = new THREE.Mesh(heatGeo, this.pinaCanaHeatmapMat);
+        this.pinaCanaHeatmapMesh.renderOrder = 1;
+        this.pinaCanaHeatmapMesh.receiveShadow = false;
+        this.pinaCanaGroup.add(this.pinaCanaHeatmapMesh);
+
+        // 2. SURCOS TRAPEZOIDALES DE PIÑA CON ACOLCHADO PLÁSTICO NEGRO (0.80 m base · 0.50 m cima · 0.30 m alto · 28.0 m largo)
+        const createTrapezoidBedGeo = (lenZ = 28.0) => {
+            const halfLen = lenZ * 0.5;
+            const bW = 0.40; // 0.80 m base inferior
+            const tW = 0.25; // 0.50 m corona superior
+            const h  = 0.30; // 0.30 m alto
+            const geo = new THREE.BufferGeometry();
+            // Caras independientes para normales nítidas y brillo satinado del plástico en los chaflanes
+            const pos = [];
+            const uv = [];
+            const addQuad = (p0, p1, p2, p3, u0, u1) => {
+                pos.push(
+                    p0[0], p0[1], p0[2], p1[0], p1[1], p1[2], p2[0], p2[1], p2[2],
+                    p0[0], p0[1], p0[2], p2[0], p2[1], p2[2], p3[0], p3[1], p3[2]
+                );
+                uv.push(
+                    u0, 0, u1, 0, u1, 14,
+                    u0, 0, u1, 14, u0, 14
+                );
+            };
+            // Talud izquierdo
+            addQuad([-bW, 0, -halfLen], [-tW, h, -halfLen], [-tW, h, halfLen], [-bW, 0, halfLen], 0.0, 0.25);
+            // Corona superior (0.50 m)
+            addQuad([-tW, h, -halfLen], [tW, h, -halfLen], [tW, h, halfLen], [-tW, h, halfLen], 0.25, 0.75);
+            // Talud derecho
+            addQuad([tW, h, -halfLen], [bW, 0, -halfLen], [bW, 0, halfLen], [tW, h, halfLen], 0.75, 1.0);
+            // Tapas en los extremos (Z = ±14 m frente a los caminos de 4 m)
+            const addCap = (zSign) => {
+                const z = zSign * halfLen;
+                if (zSign > 0) {
+                    pos.push(-bW, 0, z, bW, 0, z, tW, h, z, -bW, 0, z, tW, h, z, -tW, h, z);
+                } else {
+                    pos.push(-bW, 0, z, tW, h, z, bW, 0, z, -bW, 0, z, -tW, h, z, tW, h, z);
+                }
+                uv.push(0, 0, 1, 0, 0.75, 0.3, 0, 0, 0.75, 0.3, 0.25, 0.3);
+            };
+            addCap(-1);
+            addCap(1);
+            geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+            geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+            geo.computeVertexNormals();
+            return geo;
+        };
+
+        // Textura procedural sutil para plástico negro de acolchado agrícola
+        const mulchCanvas = document.createElement('canvas');
+        mulchCanvas.width = 256;
+        mulchCanvas.height = 256;
+        const mCtx = mulchCanvas.getContext('2d');
+        mCtx.fillStyle = '#191b1f';
+        mCtx.fillRect(0, 0, 256, 256);
+        for (let i = 0; i < 64; i++) {
+            const yy = i * 4;
+            mCtx.fillStyle = (i % 2 === 0) ? 'rgba(255,255,255,0.028)' : 'rgba(0,0,0,0.22)';
+            mCtx.fillRect(0, yy, 256, 2);
+        }
+        // Líneas sutiles de marca para hileras de trasplante sobre corona
+        mCtx.fillStyle = 'rgba(255,255,255,0.06)';
+        mCtx.fillRect(90, 0, 3, 256);
+        mCtx.fillRect(163, 0, 3, 256);
+        const mulchTex = new THREE.CanvasTexture(mulchCanvas);
+        mulchTex.wrapS = THREE.RepeatWrapping;
+        mulchTex.wrapT = THREE.RepeatWrapping;
+
+        const mulchMat = new THREE.MeshStandardMaterial({
+            map: mulchTex,
+            roughness: 0.42,
+            metalness: 0.08
+        });
+        if (typeof this.setupWetShader === 'function') {
+            this.setupWetShader(mulchMat, 0.55, 0.78);
+        }
+
+        const blockCentersZ = [25.5, 57.5, 89.5]; // 3 bloques × 28.0 m exactos
+        const bedCentersX = [];
+        for (let bx = -49.2; bx <= 49.21; bx += 1.20) {
+            bedCentersX.push(parseFloat(bx.toFixed(2)));
+        }
+        const totalBeds = blockCentersZ.length * bedCentersX.length; // 3 × 83 = 249 surcos trapezoidales
+        const bedGeo = createTrapezoidBedGeo(28.0);
+        const pinaMulchInst = new THREE.InstancedMesh(bedGeo, mulchMat, totalBeds);
+        pinaMulchInst.name = 'Pina_Camas_Trapezoidales_Mulch';
+        pinaMulchInst.castShadow = true;
+        pinaMulchInst.receiveShadow = true;
+
+        const pDummy = new THREE.Object3D();
+        let bedIdx = 0;
+        blockCentersZ.forEach(bz => {
+            bedCentersX.forEach(bx => {
+                pDummy.position.set(bx, 0.0, bz);
+                pDummy.rotation.set(0, 0, 0);
+                pDummy.scale.set(1, 1, 1);
+                pDummy.updateMatrix();
+                pinaMulchInst.setMatrixAt(bedIdx++, pDummy.matrix);
+            });
+        });
+        pinaMulchInst.instanceMatrix.needsUpdate = true;
+        this.pinaCanaGroup.add(pinaMulchInst);
+
+        // 3. MÓDULO SEGMENTADO DE PIÑAS (2.80 m = 28 plantas en doble hilera a 20 cm exactos, 10 módulos/cama = 69,720 plantas)
+        const createPineappleModuleGeo = () => {
+            const pos = [];
+            const col = [];
+            const idx = [];
+            const colOuter = new THREE.Color(0x1f5c2d); // verde-azulado característico de hoja madura de piña
+            const colMid   = new THREE.Color(0x3a8436);
+            const colTip   = new THREE.Color(0x63ab3e);
+            const tmpC = new THREE.Color();
+
+            const pushDiamondLeaf = (cx, cy, cz, yaw, bendOut, bendH, tipOut, tipH, halfW, shade) => {
+                const cosY = Math.cos(yaw);
+                const sinY = Math.sin(yaw);
+                const px = -sinY;
+                const pz = cosY;
+
+                const bx = cx + cosY * bendOut;
+                const bz = cz + sinY * bendOut;
+                const tx = cx + cosY * tipOut;
+                const tz = cz + sinY * tipOut;
+
+                const v0 = pos.length / 3;
+                // Base central
+                pos.push(cx, cy, cz);
+                tmpC.copy(colOuter).multiplyScalar(shade);
+                col.push(tmpC.r, tmpC.g, tmpC.b);
+
+                // Pliegue izquierdo
+                pos.push(bx - px * halfW, cy + bendH, bz - pz * halfW);
+                tmpC.copy(colMid).multiplyScalar(shade);
+                col.push(tmpC.r, tmpC.g, tmpC.b);
+
+                // Pliegue derecho
+                pos.push(bx + px * halfW, cy + bendH, bz + pz * halfW);
+                col.push(tmpC.r, tmpC.g, tmpC.b);
+
+                // Punta aguzada
+                pos.push(tx, cy + tipH, tz);
+                tmpC.copy(colTip).multiplyScalar(shade);
+                col.push(tmpC.r, tmpC.g, tmpC.b);
+
+                idx.push(v0, v0 + 1, v0 + 2);
+                idx.push(v0 + 1, v0 + 3, v0 + 2);
+            };
+
+            const leafCount = 6;
+            const rowsX = [-0.135, 0.135]; // doble hilera sobre la corona de 0.50 m
+            let seed = 1337;
+            const nRand = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 2147483647; };
+
+            for (let r = 0; r < 2; r++) {
+                const rx = rowsX[r];
+                const staggerZ = r * 0.10; // tresbolillo 10 cm desfasado entre hileras
+                for (let p = 0; p < 14; p++) {
+                    const pz = -1.30 + staggerZ + p * 0.20; // exacto 20 cm (0.20 m) entre piñas!
+                    const px = rx + (nRand() - 0.5) * 0.025;
+                    const baseYaw = nRand() * Math.PI * 2;
+                    const pScale = 0.90 + nRand() * 0.20;
+                    const shade = 0.88 + nRand() * 0.24;
+
+                    for (let l = 0; l < leafCount; l++) {
+                        const isInner = (l >= 4);
+                        const yaw = baseYaw + (l / leafCount) * Math.PI * 2 + (nRand() - 0.5) * 0.25;
+                        const bendOut = (isInner ? 0.07 : 0.14) * pScale;
+                        const bendH   = (isInner ? 0.26 : 0.19) * pScale;
+                        const tipOut  = (isInner ? 0.17 : 0.31) * pScale;
+                        const tipH    = (isInner ? 0.58 : 0.44) * pScale;
+                        const halfW   = (isInner ? 0.032 : 0.044) * pScale;
+                        pushDiamondLeaf(px, 0.0, pz, yaw, bendOut, bendH, tipOut, tipH, halfW, shade);
+                    }
+                }
+            }
+
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+            geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+            geo.setIndex(idx);
+            geo.computeVertexNormals();
+            return geo;
+        };
+
+        this.pinaPlantMat = new THREE.MeshStandardMaterial({
+            vertexColors: true,
+            roughness: 0.58,
+            metalness: 0.04,
+            side: THREE.DoubleSide
+        });
+        if (typeof this.setupWetShader === 'function') {
+            this.setupWetShader(this.pinaPlantMat, 0.46, 0.80, true, 0.35, 'clump');
+        }
+
+        const pinaModGeo = createPineappleModuleGeo();
+        const modPerBed = 10; // 10 × 2.80 m = 28.0 m exactos
+        const pinaPlantsInst = new THREE.InstancedMesh(pinaModGeo, this.pinaPlantMat, totalBeds * modPerBed);
+        pinaPlantsInst.name = 'Pina_Rosetas_DobleHilera_20cm';
+        pinaPlantsInst.castShadow = true;
+        pinaPlantsInst.receiveShadow = true;
+
+        const fruitMats = [];
+        const pToneA = new THREE.Color(0xf2faea);
+        const pToneB = new THREE.Color(0xffffff);
+        const pToneC = new THREE.Color(0xdcf0d4);
+
+        let modIdx = 0;
+        blockCentersZ.forEach(bz => {
+            bedCentersX.forEach(bx => {
+                for (let s = 0; s < modPerBed; s++) {
+                    const mz = (bz - 14.0) + 1.40 + s * 2.80;
+                    pDummy.position.set(bx, 0.30, mz);
+                    pDummy.rotation.set(0, (s % 2 === 0) ? 0 : Math.PI, 0);
+                    pDummy.scale.set(1, 1, 1);
+                    pDummy.updateMatrix();
+                    pinaPlantsInst.setMatrixAt(modIdx, pDummy.matrix);
+                    const pick = rand();
+                    pinaPlantsInst.setColorAt(modIdx, pick < 0.33 ? pToneA : (pick < 0.67 ? pToneB : pToneC));
+                    modIdx++;
+
+                    // Frutos dorados emergiendo sobre algunas coronas (~1-2 frutos por módulo = ~3,500 piñas doradas visibles)
+                    if (rand() < 0.85) {
+                        const rowSign = (rand() < 0.5) ? -0.135 : 0.135;
+                        const fz = mz + (rand() - 0.5) * 2.2;
+                        pDummy.position.set(bx + rowSign, 0.56, fz);
+                        pDummy.rotation.set((rand() - 0.5) * 0.08, rand() * Math.PI * 2, (rand() - 0.5) * 0.08);
+                        const fs = 0.88 + rand() * 0.25;
+                        pDummy.scale.set(fs, fs, fs);
+                        pDummy.updateMatrix();
+                        fruitMats.push(pDummy.matrix.clone());
+                    }
+                }
+            });
+        });
+        pinaPlantsInst.instanceMatrix.needsUpdate = true;
+        if (pinaPlantsInst.instanceColor) pinaPlantsInst.instanceColor.needsUpdate = true;
+        this.pinaCanaGroup.add(pinaPlantsInst);
+
+        if (fruitMats.length > 0) {
+            const pinaFruitGeo = new THREE.CylinderGeometry(0.068, 0.062, 0.17, 6);
+            pinaFruitGeo.scale(1.0, 1.0, 1.0);
+            const pinaFruitMat = new THREE.MeshStandardMaterial({
+                color: 0xd99b1e,
+                roughness: 0.55,
+                metalness: 0.05
+            });
+            const pinaFruitInst = new THREE.InstancedMesh(pinaFruitGeo, pinaFruitMat, fruitMats.length);
+            pinaFruitInst.name = 'Pina_Frutos_Dorados';
+            for (let i = 0; i < fruitMats.length; i++) pinaFruitInst.setMatrixAt(i, fruitMats[i]);
+            pinaFruitInst.instanceMatrix.needsUpdate = true;
+            this.pinaCanaGroup.add(pinaFruitInst);
+        }
+
+        // 4. PARCELA SUR (Z [-107.5, -7.5]): CAÑA DE AZÚCAR DENSA (TALLO 3.0 m + HOJAS FLEXIBLES HASTA 4.0 m)
+        const createCaneStalkClumpGeo = () => {
+            const pos = [];
+            const col = [];
+            const idx = [];
+            const cBase = new THREE.Color(0x7c743e); // caña basal seca-verdosa
+            const cMid  = new THREE.Color(0x6d9c33); // nudos caña verde-amarillenta
+            const cTop  = new THREE.Color(0x4a8f28); // cogollo verde fresco
+
+            const stalks = 4;
+            let seed = 4242;
+            const nRand = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 2147483647; };
+
+            for (let s = 0; s < stalks; s++) {
+                const ang = (s / stalks) * Math.PI * 2 + (nRand() - 0.5) * 0.45;
+                const offR = 0.08 + nRand() * 0.14;
+                const ox = Math.cos(ang) * offR;
+                const oz = Math.sin(ang) * offR;
+                const leanX = Math.cos(ang) * (0.10 + nRand() * 0.14);
+                const leanZ = Math.sin(ang) * (0.10 + nRand() * 0.14);
+                const hTotal = 2.88 + nRand() * 0.24; // ~3.0 m de tallo
+
+                const baseIdx = pos.length / 3;
+                const levels = [0.0, 0.50, 1.0];
+                for (let lv = 0; lv < levels.length; lv++) {
+                    const t = levels[lv];
+                    const yy = t * hTotal;
+                    const cx = ox + leanX * t * t;
+                    const cz = oz + leanZ * t * t;
+                    const r = 0.032 - t * 0.008;
+                    const ringCol = (t < 0.4) ? cBase : (t < 0.8 ? cMid : cTop);
+                    const verts = [[cx - r, yy, cz - r], [cx + r, yy, cz - r], [cx + r, yy, cz + r], [cx - r, yy, cz + r]];
+                    verts.forEach(([vx, vy, vz]) => {
+                        pos.push(vx, vy, vz);
+                        col.push(ringCol.r, ringCol.g, ringCol.b);
+                    });
+                }
+                for (let seg = 0; seg < 2; seg++) {
+                    const r0 = baseIdx + seg * 4;
+                    const r1 = r0 + 4;
+                    for (let side = 0; side < 4; side++) {
+                        const sNext = (side + 1) % 4;
+                        idx.push(r0 + side, r1 + side, r0 + sNext);
+                        idx.push(r0 + sNext, r1 + side, r1 + sNext);
+                    }
+                }
+            }
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+            geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+            geo.setIndex(idx);
+            geo.computeVertexNormals();
+            return geo;
+        };
+
+        const createCaneLeafCrownGeo = () => {
+            const pos = [];
+            const col = [];
+            const idx = [];
+            const cSheath = new THREE.Color(0x529c2a);
+            const cBlade  = new THREE.Color(0x2f8c26);
+            const cSunTip = new THREE.Color(0x88cf3e);
+            const tmpC = new THREE.Color();
+
+            const leafCount = 14; // penacho denso desde y=2.1m subiendo y arqueándose hasta ~4.0m
+            let seed = 8899;
+            const nRand = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 2147483647; };
+
+            for (let l = 0; l < leafCount; l++) {
+                const yaw = (l / leafCount) * Math.PI * 2 + (nRand() - 0.5) * 0.35;
+                const dirX = Math.cos(yaw);
+                const dirZ = Math.sin(yaw);
+                const perpX = -dirZ;
+                const perpZ = dirX;
+
+                const tier = l % 3;
+                const yStart = (tier === 0) ? (2.15 + nRand() * 0.25) : ((tier === 1) ? (2.55 + nRand() * 0.25) : (2.88 + nRand() * 0.20));
+                const reach  = (tier === 2) ? (0.85 + nRand() * 0.30) : (1.15 + nRand() * 0.35);
+                const rise   = (tier === 2) ? (1.02 + nRand() * 0.14) : ((tier === 1) ? (1.05 + nRand() * 0.16) : (0.90 + nRand() * 0.18));
+                // Puntas de caña superan 3.9–4.05 m en las hojas superiores y caen grácilmente por flexibilidad
+                const dropTip = (tier === 2) ? 0.16 : 0.34;
+                const ox = dirX * (0.04 + nRand() * 0.10);
+                const oz = dirZ * (0.04 + nRand() * 0.10);
+
+                const vStart = pos.length / 3;
+                // 3 niveles en cinta + punta afilada = 5 tris por hoja
+                const stations = [
+                    { t: 0.00, r: 0.0,           y: yStart,                         w: 0.052, c: cSheath },
+                    { t: 0.38, r: reach * 0.36,  y: yStart + rise * 0.72,           w: 0.068, c: cBlade  },
+                    { t: 0.74, r: reach * 0.75,  y: yStart + rise - dropTip * 0.32, w: 0.042, c: cBlade  }
+                ];
+                stations.forEach(st => {
+                    const cx = ox + dirX * st.r;
+                    const cz = oz + dirZ * st.r;
+                    tmpC.copy(st.c);
+                    pos.push(cx - perpX * st.w, st.y, cz - perpZ * st.w);
+                    col.push(tmpC.r, tmpC.g, tmpC.b);
+                    pos.push(cx + perpX * st.w, st.y, cz + perpZ * st.w);
+                    col.push(tmpC.r, tmpC.g, tmpC.b);
+                });
+                // Punta puntiaguda de la hoja
+                pos.push(ox + dirX * reach, yStart + rise - dropTip, oz + dirZ * reach);
+                col.push(cSunTip.r, cSunTip.g, cSunTip.b);
+
+                idx.push(vStart, vStart + 1, vStart + 2);
+                idx.push(vStart + 1, vStart + 3, vStart + 2);
+                idx.push(vStart + 2, vStart + 3, vStart + 4);
+                idx.push(vStart + 3, vStart + 5, vStart + 4);
+                idx.push(vStart + 4, vStart + 5, vStart + 6);
+            }
+
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+            geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+            geo.setIndex(idx);
+            geo.computeVertexNormals();
+            return geo;
+        };
+
+        this.caneStalkMat = new THREE.MeshStandardMaterial({
+            vertexColors: true,
+            roughness: 0.78,
+            metalness: 0.02
+        });
+        if (typeof this.setupDownwashOnlyShader === 'function') {
+            this.setupDownwashOnlyShader(this.caneStalkMat, 0.90, 'sugarcane_stalk');
+        }
+
+        this.caneLeafMat = new THREE.MeshStandardMaterial({
+            vertexColors: true,
+            roughness: 0.56,
+            metalness: 0.02,
+            side: THREE.DoubleSide
+        });
+        if (typeof this.setupDownwashOnlyShader === 'function') {
+            this.setupDownwashOnlyShader(this.caneLeafMat, 1.55, 'sugarcane_leaf');
+        }
+
+        const caneMatrices = [];
+        const caneColors = [];
+        const cToneA = new THREE.Color(0xeef9dc);
+        const cToneB = new THREE.Color(0xffffff);
+        const cToneC = new THREE.Color(0xd7f0c2);
+
+        for (let cz = -106.2; cz <= -8.6; cz += 1.52) {
+            for (let cx = -49.0; cx <= 49.0; cx += 1.72) {
+                const jx = cx + (rand() - 0.5) * 0.45;
+                const jz = cz + (rand() - 0.5) * 0.42;
+                if (Math.hypot(jx - (-18.0), jz - (-18.0)) < 2.2) continue;
+
+                pDummy.position.set(jx, 0.0, jz);
+                pDummy.rotation.set((rand() - 0.5) * 0.05, rand() * Math.PI * 2, (rand() - 0.5) * 0.05);
+                const sxz = 0.92 + rand() * 0.24;
+                const sy = 0.97 + rand() * 0.07; // tallos ~3.0 m, hojas flexibles alcanzan ~4.0 m
+                pDummy.scale.set(sxz, sy, sxz);
+                pDummy.updateMatrix();
+                caneMatrices.push(pDummy.matrix.clone());
+
+                const pick = rand();
+                caneColors.push(pick < 0.34 ? cToneA : (pick < 0.68 ? cToneB : cToneC));
+            }
+        }
+
+        const caneStalkGeo = createCaneStalkClumpGeo();
+        const caneStalkInst = new THREE.InstancedMesh(caneStalkGeo, this.caneStalkMat, Math.max(1, caneMatrices.length));
+        caneStalkInst.name = 'Cana_Tallos_3m';
+        caneStalkInst.castShadow = true;
+        caneStalkInst.receiveShadow = true;
+        for (let i = 0; i < caneMatrices.length; i++) {
+            caneStalkInst.setMatrixAt(i, caneMatrices[i]);
+        }
+        caneStalkInst.instanceMatrix.needsUpdate = true;
+        this.pinaCanaGroup.add(caneStalkInst);
+
+        const caneLeafGeo = createCaneLeafCrownGeo();
+        const caneLeafInst = new THREE.InstancedMesh(caneLeafGeo, this.caneLeafMat, Math.max(1, caneMatrices.length));
+        caneLeafInst.name = 'Cana_Hojas_Flexibles_4m';
+        caneLeafInst.castShadow = true;
+        caneLeafInst.receiveShadow = true;
+        for (let i = 0; i < caneMatrices.length; i++) {
+            caneLeafInst.setMatrixAt(i, caneMatrices[i]);
+            caneLeafInst.setColorAt(i, caneColors[i]);
+        }
+        caneLeafInst.instanceMatrix.needsUpdate = true;
+        if (caneLeafInst.instanceColor) caneLeafInst.instanceColor.needsUpdate = true;
+        this.pinaCanaGroup.add(caneLeafInst);
+
+        this.pinaCanaStats = {
+            beds: totalBeds,
+            pinaModules: totalBeds * modPerBed,
+            pinaPlants: totalBeds * modPerBed * 28,
+            caneClumps: caneMatrices.length
+        };
+
+        this.pinaCanaGroup.visible = (this.cropType === 'pina_cana');
+        this.scene.add(this.pinaCanaGroup);
+    }
+
     setCropType(type) {
 
         this.cropType = type || 'default';
@@ -39243,6 +41050,10 @@ shader.fragmentShader = shader.fragmentShader.replace(
         const isNaranjo = (this.cropType === 'naranjo');
 
         const isPotrero = (this.cropType === 'potrero');
+
+        const isBananoArroz = (this.cropType === 'banano_arroz');
+
+        const isPinaCana = (this.cropType === 'pina_cana');
 
 
 
@@ -39270,6 +41081,18 @@ shader.fragmentShader = shader.fragmentShader.replace(
 
         }
 
+        if (this.bananoArrozGroup) {
+
+            this.bananoArrozGroup.visible = isBananoArroz;
+
+        }
+
+        if (this.pinaCanaGroup) {
+
+            this.pinaCanaGroup.visible = isPinaCana;
+
+        }
+
         const isDye = !!(CONFIG.spray && CONFIG.spray.dyeEnabled);
 
         const waterColorOn = (CONFIG.spray && CONFIG.spray.waterColorEnabled !== false);
@@ -39285,6 +41108,18 @@ shader.fragmentShader = shader.fragmentShader.replace(
         if (this.potreroHeatmapMesh) {
 
             this.potreroHeatmapMesh.visible = isPotrero && hVis && (waterColorOn || isDye);
+
+        }
+
+        if (this.bananoArrozHeatmapMesh) {
+
+            this.bananoArrozHeatmapMesh.visible = isBananoArroz && hVis && (waterColorOn || isDye);
+
+        }
+
+        if (this.pinaCanaHeatmapMesh) {
+
+            this.pinaCanaHeatmapMesh.visible = isPinaCana && hVis && (waterColorOn || isDye);
 
         }
 
@@ -39380,6 +41215,22 @@ shader.fragmentShader = shader.fragmentShader.replace(
 
         }
 
+        if (texture && this.bananoArrozHeatmapMat) {
+
+            this.bananoArrozHeatmapMat.map = texture;
+
+            this.bananoArrozHeatmapMat.needsUpdate = true;
+
+        }
+
+        if (texture && this.pinaCanaHeatmapMat) {
+
+            this.pinaCanaHeatmapMat.map = texture;
+
+            this.pinaCanaHeatmapMat.needsUpdate = true;
+
+        }
+
     }
 
 
@@ -39416,6 +41267,18 @@ shader.fragmentShader = shader.fragmentShader.replace(
 
         }
 
+        if (this.bananoArrozHeatmapMesh) {
+
+            this.bananoArrozHeatmapMesh.visible = !!visible && (this.cropType === 'banano_arroz') && (waterColorOn || isDye);
+
+        }
+
+        if (this.pinaCanaHeatmapMesh) {
+
+            this.pinaCanaHeatmapMesh.visible = !!visible && (this.cropType === 'pina_cana') && (waterColorOn || isDye);
+
+        }
+
     }
 
 
@@ -39441,6 +41304,18 @@ shader.fragmentShader = shader.fragmentShader.replace(
         if (this.potreroHeatmapMesh) {
 
             this.potreroHeatmapMesh.visible = hVis && (this.cropType === 'potrero') && (enabled || isDye);
+
+        }
+
+        if (this.bananoArrozHeatmapMesh) {
+
+            this.bananoArrozHeatmapMesh.visible = hVis && (this.cropType === 'banano_arroz') && (enabled || isDye);
+
+        }
+
+        if (this.pinaCanaHeatmapMesh) {
+
+            this.pinaCanaHeatmapMesh.visible = hVis && (this.cropType === 'pina_cana') && (enabled || isDye);
 
         }
 
@@ -42641,14 +44516,14 @@ shader.fragmentShader = shader.fragmentShader.replace(
                 this.downwashUniforms.uDroneVel.value.copy(this._smoothDroneVel);
             }
             this.downwashUniforms.uTime.value = time;
-            this.downwashUniforms.uDownwashIntensity.value = (this._smoothDownwashPower > 0.002) ? this._smoothDownwashPower : 0.0;
+            this.downwashUniforms.uDownwashIntensity.value = (this._smoothDownwashPower > 0.002) ? (this._smoothDownwashPower * 1.10) : 0.0;
             this.downwashUniforms.uDownwashRadius.value = THREE.MathUtils.clamp(4.83 + Math.max(0, dronePos.y) * 0.52, 4.83, 10.35);
         }
 
         // Balanceo suave de árboles completos en escenario Potrero (calculado relativo a la copa del árbol)
         if (this.cropType === 'potrero' && this.potreroTrees && this.potreroTrees.length > 0) {
             const maxInfluenceDist = 11.5; // metros horizontales (+15% área movida)
-            const maxSwayRad = 0.042;      // ~2.4° de deflexión máxima suave en el tronco
+            const maxSwayRad = 0.0462;     // +10% balanceo (~2.65° de deflexión máxima suave en el tronco)
             const power = this._smoothDownwashPower || 0.0;
 
             for (let i = 0; i < this.potreroTrees.length; i++) {
@@ -42692,18 +44567,23 @@ shader.fragmentShader = shader.fragmentShader.replace(
     }
 
     update(dt) {
-        // 1. Manga de viento dinámica
+        // 1. Manga de viento dinámica y vector de viento para vegetación flexible (caña)
+        const windDirDeg = (CONFIG.wind && CONFIG.wind.randomizeSpeed && CONFIG.wind.currentDirection !== undefined)
+            ? CONFIG.wind.currentDirection
+            : ((CONFIG.wind && CONFIG.wind.direction) || 45.0);
+        const windAngleRad = (windDirDeg * Math.PI) / 180.0;
+        const speed = (CONFIG.wind && CONFIG.wind.randomizeSpeed && CONFIG.wind.currentSpeed !== undefined)
+            ? CONFIG.wind.currentSpeed
+            : (CONFIG.wind ? CONFIG.wind.speed : 0.0);
+
         if (this.sockPivot && this.sockCone) {
-            const windDirDeg = (CONFIG.wind && CONFIG.wind.randomizeSpeed && CONFIG.wind.currentDirection !== undefined)
-                ? CONFIG.wind.currentDirection
-                : ((CONFIG.wind && CONFIG.wind.direction) || 45.0);
-            const windAngleRad = (windDirDeg * Math.PI) / 180.0;
             this.sockPivot.rotation.y = windAngleRad + Math.PI;
-            const speed = (CONFIG.wind && CONFIG.wind.randomizeSpeed && CONFIG.wind.currentSpeed !== undefined)
-                ? CONFIG.wind.currentSpeed
-                : (CONFIG.wind ? CONFIG.wind.speed : 0.0);
             const liftAngle = Math.min(1.3, (speed / 10.0) * 1.2);
             this.sockCone.rotation.x = -liftAngle;
+        }
+        if (this.downwashUniforms && this.downwashUniforms.uWindVec) {
+            const effWind = Math.max(1.8, speed || 2.5);
+            this.downwashUniforms.uWindVec.value.set(Math.sin(windAngleRad) * effWind, Math.cos(windAngleRad) * effWind);
         }
 
         // 2. VegetaciÃ³n Reactiva al Downwash (Movimientos leves y suaves)
@@ -43584,6 +45464,59 @@ class OmnidirectionalRadar {
 
                     if (dist <= this.maxDistance && !shouldIgnoreDownward(v, dist)) {
                         recordObstacle(pt, v, dist, `Naranjo Dulce (Citrus sinensis - 4.0m)`, 'Árbol');
+                    }
+                }
+            }
+        }
+
+        if (this.terrain && this.terrain.cropType === 'banano_arroz' && this.terrain.bananaPlants && this.terrain.bananaPlants.length > 0) {
+            const plants = this.terrain.bananaPlants;
+            const numPlants = plants.length;
+            for (let i = 0; i < numPlants; i++) {
+                const pl = plants[i];
+                const dx = pl.x - radarPos.x;
+                if (Math.abs(dx) > this.maxDistance + 2.5) continue;
+                const dz = pl.z - radarPos.z;
+                if (Math.abs(dz) > this.maxDistance + 2.5) continue;
+
+                const dHorizontal = Math.hypot(dx, dz);
+                const canopyR = pl.canopyRadius || 1.85;
+                const trunkR = pl.trunkRadius || 0.22;
+                const plantH = pl.height || 4.0;
+                const branchY = pl.branchHeight || 2.1;
+                const baseY = pl.baseY || 0.0;
+                const topY = baseY + plantH;
+
+                if (radarPos.y >= topY + 0.20 && (!this.drone || !this.drone.velocity || this.drone.velocity.y >= -0.2)) {
+                    continue;
+                }
+
+                const relY = radarPos.y - baseY;
+                let effR = canopyR;
+                if (relY < branchY) {
+                    const t = Math.max(0, Math.max(0, relY) / branchY);
+                    effR = trunkR + (canopyR - trunkR) * (t * t);
+                }
+
+                if (dHorizontal - effR <= this.maxDistance) {
+                    let surfaceX, surfaceZ;
+                    if (dHorizontal <= effR) {
+                        surfaceX = radarPos.x;
+                        surfaceZ = radarPos.z;
+                    } else {
+                        const nx = dx / dHorizontal;
+                        const nz = dz / dHorizontal;
+                        surfaceX = pl.x - nx * effR;
+                        surfaceZ = pl.z - nz * effR;
+                    }
+
+                    const clampedY = Math.max(baseY, Math.min(topY, radarPos.y));
+                    const pt = new THREE.Vector3(surfaceX, clampedY, surfaceZ);
+                    const v = pt.clone().sub(radarPos);
+                    const dist = v.length();
+
+                    if (dist <= this.maxDistance && !shouldIgnoreDownward(v, dist)) {
+                        recordObstacle(pt, v, dist, `Planta de Banano (4.0m)`, 'Cultivo');
                     }
                 }
             }
@@ -52334,6 +54267,14 @@ class AgriSimulatorApp3 {
 
                 targetType = 'potrero';
 
+            } else if (this.activeCropMap === 'potrero') {
+
+                targetType = 'banano_arroz';
+
+            } else if (this.activeCropMap === 'banano_arroz') {
+
+                targetType = 'pina_cana';
+
             } else {
 
                 targetType = 'default';
@@ -52351,6 +54292,10 @@ class AgriSimulatorApp3 {
         const isNaranjo = (this.activeCropMap === 'naranjo');
 
         const isPotrero = (this.activeCropMap === 'potrero');
+
+        const isBananoArroz = (this.activeCropMap === 'banano_arroz');
+
+        const isPinaCana = (this.activeCropMap === 'pina_cana');
 
 
 
@@ -52399,6 +54344,18 @@ class AgriSimulatorApp3 {
 
                 btn.title = 'Cambiar al escenario de Potrero Ganadero (Loma 5m Norte con 20 árboles • Sur Plano con 30 árboles)';
 
+            } else if (isPotrero) {
+
+                btn.textContent = '🍌 Cambiar mapa a Banano y Arroz';
+
+                btn.title = 'Cambiar al escenario de Melgas Acuáticas de Arroz (0.8m · Terrazas 2.5m) y Banano (4.0m)';
+
+            } else if (isBananoArroz) {
+
+                btn.textContent = '🍍 Cambiar mapa a Piña y Caña';
+
+                btn.title = 'Cambiar al escenario de Piña (3 bloques 28m + 4 caminos 4m) y Caña de Azúcar (3.0m tallo / 4.0m hojas)';
+
             } else {
 
                 btn.textContent = '🌽 Cambiar mapa a Campo Abierto';
@@ -52423,9 +54380,17 @@ class AgriSimulatorApp3 {
 
                 tag.textContent = 'Cultivo: Huerto de Naranjos (2.0 ha • 450 Árboles • 4.0 m)';
 
-            } else {
+            } else if (isPotrero) {
 
                 tag.textContent = 'Cultivo: Potrero Rancho (Corral Perimetral · Cabaña y Molino | Sur 30 Árboles)';
+
+            } else if (isBananoArroz) {
+
+                tag.textContent = 'Cultivo: Arroz Melgas Acuáticas (N · 0.8m · Terrazas 2.5m) · Banano (S · 4.0m)';
+
+            } else {
+
+                tag.textContent = 'Cultivo: Piña Camas Trapezoidales (N · 0.9m) · Caña Flexible (S · 3.0m / 4.0m)';
 
             }
 
@@ -52445,7 +54410,15 @@ class AgriSimulatorApp3 {
 
         if (typeof this.showHUDAlert === 'function') {
 
-            if (isPotrero) {
+            if (isPinaCana) {
+
+                this.showHUDAlert('🍍🌾 Escenario cambiado: Piña (3 bloques 28m · 4 caminos 4m · 20cm) y Caña de Azúcar Flexible (3m / 4m)', 3500, '🍍');
+
+            } else if (isBananoArroz) {
+
+                this.showHUDAlert('🍌🌾 Escenario cambiado: Melgas Acuáticas de Arroz Verde (0.8m · Terrazas 2.5m) y Banano (4.0m)', 3500, '🌾');
+
+            } else if (isPotrero) {
 
                 this.showHUDAlert('🐄 Escenario cambiado: Potrero Rancho (Corral Perimetral · Cabaña y Molino | Sur 30 Árboles)', 3500, '🐄');
 
@@ -54073,6 +56046,14 @@ class AgriSimulatorApp3 {
         } else if (this.activeCropMap === 'naranjo') {
 
             curW = 7.0;
+
+        } else if (this.activeCropMap === 'banano_arroz') {
+
+            curW = 4.2;
+
+        } else if (this.activeCropMap === 'pina_cana') {
+
+            curW = 4.0;
 
         } else if (this.spray && this.spray.currentSwathWidth) {
 
@@ -57235,7 +59216,7 @@ updateCamera(dt = 0.016) {
 
         // Actualizar RPM de rotores en la barra de control
 
-        const avgRpm = Math.round(this.drone.rotors.reduce((acc, r) => acc + (r.rpm || 0), 0) / 4);
+        const avgRpm = Math.round(this.drone.rotors.reduce((acc, r) => acc + (r.rpm || 0), 0) / Math.max(1, this.drone.rotors.length));
 
         if (this.ui.dispCollectiveRPM) this.ui.dispCollectiveRPM.textContent = `${avgRpm} RPM`;
 
@@ -58109,23 +60090,59 @@ updateCamera(dt = 0.016) {
                         const dir = (rHub.userData && rHub.userData.spinDir !== undefined) ? rHub.userData.spinDir : (i % 2 === 0 ? -1 : 1);
                         const blurDisc = rHub.userData.blurDisc;
 
-                        if (rpm < 30) {
+                        if (rHub.userData && rHub.userData.isT55CinematicBlur) {
+                            const ud = rHub.userData;
+                            const targetBlend = (rpm >= 30 && this.drone.isFlying) ? 1.0 : 0.0;
+                            const speedRate = (targetBlend > ud.t55BlurBlend) ? 7.5 : 8.5;
+                            ud.t55BlurBlend = THREE.MathUtils.lerp(ud.t55BlurBlend || 0.0, targetBlend, Math.min(1.0, dt * speedRate));
+                            if (Math.abs(ud.t55BlurBlend - targetBlend) < 0.015) ud.t55BlurBlend = targetBlend;
+
+                            const showBlur = (ud.t55BlurBlend > 0.02 && rpm >= 30);
+                            const showSolid = (!this.drone.isFlying || ud.t55BlurBlend < 0.35);
+
+                            if (ud.solidBlades) {
+                                for (let b = 0; b < ud.solidBlades.length; b++) {
+                                    ud.solidBlades[b].visible = showSolid;
+                                }
+                            }
+                            if (ud.t55BlurGroup) {
+                                ud.t55BlurGroup.visible = showBlur;
+                                if (showBlur) {
+                                    ud.t55BlurMat1.opacity = ud.t55BlurBlend * 0.96;
+                                    ud.t55BlurMat2.opacity = ud.t55BlurBlend * 0.46;
+                                    if (ud.t55BlurSideMat) ud.t55BlurSideMat.opacity = ud.t55BlurBlend * 0.68;
+                                    ud.t55BlurLayer2.rotation.y -= 5.8 * dir * dt;
+                                } else {
+                                    ud.t55BlurMat1.opacity = 0.0;
+                                    ud.t55BlurMat2.opacity = 0.0;
+                                    if (ud.t55BlurSideMat) ud.t55BlurSideMat.opacity = 0.0;
+                                }
+                            }
+                            if (rpm >= 30) {
+                                const idleRPM = (CONFIG.drone && CONFIG.drone.idleRPM) || 600;
+                                const modelMaxRPM = (CONFIG.drone && CONFIG.drone.maxRPM) || 3200;
+                                const rpmRatio = Math.min(1.0, Math.max(0.0, (rpm - idleRPM) / Math.max(1, modelMaxRPM - idleRPM)));
+                                const visualAngularSpeed = (15.0 + (this.drone.isFlying ? 26.0 : 38.0) * rpmRatio) * dir;
+                                rHub.rotation.y += visualAngularSpeed * dt;
+                            }
+                        } else if (rpm < 30) {
                             if (blurDisc) {
                                 blurDisc.visible = false;
                                 blurDisc.material.opacity = 0.0;
                             }
                         } else {
-                            const maxRPM = (CONFIG.drone && CONFIG.drone.maxRPM) || 2800;
-                            const rpmRatio = Math.min(1.0, Math.max(0.0, (rpm - 30) / (maxRPM - 30)));
+                            const idleRPM = (CONFIG.drone && CONFIG.drone.idleRPM) || 600;
+                            const modelMaxRPM = (this.drone.currentModel === 'T100') ? 3800 : ((CONFIG.drone && CONFIG.drone.maxRPM) || 3200);
+                            const rpmRatio = Math.min(1.0, Math.max(0.0, (rpm - idleRPM) / Math.max(1, modelMaxRPM - idleRPM)));
 
                             if (blurDisc) {
                                 blurDisc.visible = true;
-                                blurDisc.material.opacity = THREE.MathUtils.lerp(0.11, 0.47, rpmRatio);
+                                blurDisc.material.opacity = THREE.MathUtils.lerp(0.08, 0.56, rpmRatio);
                             }
 
                             // Velocidad angular visual continua estrictamente < 60°/frame para garantizar giro fluido sin saltos
-                            // Escala directamente con las RPM reales del motor (visibilidad inmediata de la guiñada)
-                            const visualAngularSpeed = (18.0 + 36.0 * rpmRatio) * dir;
+                            // Escala directamente con las RPM reales individuales del motor (visibilidad inmediata en cada maniobra)
+                            const visualAngularSpeed = (14.0 + 42.0 * rpmRatio) * dir;
                             rHub.rotation.y += visualAngularSpeed * dt;
                         }
                     }
@@ -58194,6 +60211,10 @@ updateCamera(dt = 0.016) {
                     laneW = 3.0;
                 } else if (this.activeCropMap === 'naranjo') {
                     laneW = 7.0;
+                } else if (this.activeCropMap === 'banano_arroz') {
+                    laneW = 4.2;
+                } else if (this.activeCropMap === 'pina_cana') {
+                    laneW = 4.0;
                 }
 
                 const inNoSpray = (this.terrain && typeof this.terrain.isInNoSprayZone === 'function' && this.terrain.isInNoSprayZone(dronePos.x, dronePos.z));
